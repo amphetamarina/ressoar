@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "Monaspace Radon";
+  src: url("/fonts/radon-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monaspace Radon";
+  src: url("/fonts/radon-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   --bg: #120d1c;
   --surface: #1d1430;
@@ -6,6 +20,7 @@
   --muted: #9a8bb8;
   --accent: #ff79c6;
   --accent-2: #bd93f9;
+  --font: "Monaspace Radon", ui-monospace, monospace;
 }
 
 * {
@@ -14,10 +29,10 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 header {
@@ -33,56 +48,114 @@ header a {
 
 header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   color: var(--accent);
+  letter-spacing: 0.02em;
 }
 
 main {
-  max-width: 760px;
+  max-width: 820px;
   margin: 0 auto;
   padding: 1.5rem;
 }
 
 h2 {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 a {
   color: var(--accent-2);
 }
 
-.card-list {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.card-list a {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.25rem;
-  background: var(--surface);
-  border-radius: 12px;
-  text-decoration: none;
-  color: var(--text);
+button {
+  font: inherit;
   cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
-.meta {
+button.primary {
+  background: var(--accent);
+  color: #1a0e15;
+  font-weight: 700;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--accent-2);
+  padding: 0.4rem 0.6rem;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+textarea {
+  font: inherit;
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent-2);
+}
+
+.tagline {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 1.05rem;
+}
+
+.home-actions {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.home-actions button {
+  flex: 1;
+  min-width: 200px;
+  padding: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.home-example {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+.session-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.progress {
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .back {
-  display: inline-block;
   margin-bottom: 1rem;
-  cursor: pointer;
-  text-decoration: none;
 }
 
-.exercise {
+.exercise,
+.exercise-edit {
   background: var(--surface);
   border-radius: 14px;
   padding: 1.25rem;
@@ -112,42 +185,101 @@ a {
   padding: 0.9rem 1rem;
 }
 
-.step-label {
-  margin-bottom: 0.6rem;
+.step.is-done .step-label {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.step-check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.step-check input {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+  flex: none;
 }
 
 .step-meta {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-top: 0.6rem;
 }
 
 .badge {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   background: rgba(189, 147, 249, 0.2);
   color: var(--accent-2);
 }
 
-button {
-  font: inherit;
-  cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  background: var(--accent);
-  color: #1a0e15;
-  font-weight: 600;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .drill-start {
   margin-left: auto;
+  background: var(--accent);
+  color: #1a0e15;
+  font-weight: 700;
+}
+
+.exercise-edit input,
+.exercise-edit textarea,
+.session-title-input {
+  margin-bottom: 0.6rem;
+}
+
+.steps-edit {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.step-edit {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.step-edit-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.step-edit-meta .step-duration-input {
+  width: 8rem;
+}
+
+.free-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: auto;
+  color: var(--muted);
+}
+
+.free-toggle input {
+  width: auto;
+}
+
+.exercise-edit-actions,
+.create-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.create-actions {
+  margin-top: 1.5rem;
 }
 
 #drill-overlay {
@@ -207,11 +339,10 @@ button:disabled {
   width: 100%;
   border-radius: 10px;
   background: #000;
-  transform: scaleX(-1);
 }
 
-.drill-pitch {
-  transform: none;
+.drill-video {
+  transform: scaleX(-1);
 }
 
 .drill-readout {
@@ -229,9 +360,8 @@ button:disabled {
 
 .drill-note {
   font-size: 1.75rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
-  font-variant-numeric: tabular-nums;
 }
 
 .drill-timer {
@@ -245,6 +375,15 @@ button:disabled {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.drill-download {
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  background: var(--accent-2);
+  color: #15101f;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .drill-status {
