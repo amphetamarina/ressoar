@@ -1,0 +1,14 @@
+{
+  "name": "Ressoar — Treino de feminização vocal",
+  "short_name": "Ressoar",
+  "description": "Treino de feminização vocal com pitch ao vivo, câmera e checklist.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120d1c",
+  "theme_color": "#120d1c",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
