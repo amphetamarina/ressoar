@@ -1,0 +1,16 @@
+{
+  "title": "Exemplo: Glissando",
+  "createdAt": "2026-05-23",
+  "exercises": [
+    {
+      "title": "Sopro sonorizado",
+      "description": "Sem inflar as bochechas e com os lábios em bico, realizar o som de \"vvuuu\" soltando mais ar do que som.",
+      "steps": [
+        {
+          "label": "Glissando: do grave para o agudo em escalas e descer em escalas para o grave.",
+          "duration": 90
+        }
+      ]
+    }
+  ]
+}

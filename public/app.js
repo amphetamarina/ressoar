@@ -357,14 +357,14 @@ function renderHome() {
       </div>
       <div class="home-example">
         <span>Sem arquivo? Comece com o exemplo:</span>
-        <button id="btn-example" class="ghost">Abrir 2ª Sessão de exemplo</button>
+        <button id="btn-example" class="ghost">Abrir exemplo (Glissando)</button>
       </div>
     </section>`;
 
   document.getElementById("btn-load").addEventListener("click", () => fileInput.click());
   document.getElementById("btn-create").addEventListener("click", renderCreate);
   document.getElementById("btn-example").addEventListener("click", async () => {
-    const res = await fetch("/sessions/exemplo-2a-sessao.ressoar.json");
+    const res = await fetch("/sessions/exemplo-glissando.ressoar.json");
     openSession(validateSession(await res.json()));
   });
 }
