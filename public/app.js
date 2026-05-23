@@ -44,6 +44,8 @@ const I18N = {
     invalidFormat: "Formato inválido: faltam 'title' ou 'exercises'.",
     invalidExercise: "Cada exercício precisa de 'title' e 'steps'.",
     loadFailed: "Não foi possível carregar a sessão:",
+    openSource: "Código Aberto",
+    createdBy: "Criado por Marina Rosa —",
   },
   en: {
     flag: "🇺🇸",
@@ -83,6 +85,8 @@ const I18N = {
     invalidFormat: "Invalid format: missing 'title' or 'exercises'.",
     invalidExercise: "Each exercise needs 'title' and 'steps'.",
     loadFailed: "Could not load the session:",
+    openSource: "Open Source",
+    createdBy: "Created by Marina Rosa —",
   },
 };
 
@@ -401,6 +405,8 @@ const app = document.getElementById("app");
 const overlay = document.getElementById("drill-overlay");
 const fileInput = document.getElementById("file-input");
 const langToggle = document.getElementById("lang-toggle");
+const githubText = document.getElementById("github-text");
+const footerAuthor = document.getElementById("footer-author");
 
 let activeDrill = null;
 let currentSession = null;
@@ -652,6 +658,8 @@ function applyLang() {
   document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
   langToggle.textContent = I18N[lang].flag;
   langToggle.title = I18N[lang].switchTo;
+  githubText.textContent = t("openSource");
+  footerAuthor.innerHTML = `${t("createdBy")} <a href="https://marinarosa.net" target="_blank" rel="noopener noreferrer">marinarosa.net</a>`;
 }
 
 langToggle.addEventListener("click", () => {
