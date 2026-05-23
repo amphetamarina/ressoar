@@ -1,0 +1,245 @@
+:root {
+  --bg: #120d1c;
+  --surface: #1d1430;
+  --surface-2: #2a1f44;
+  --text: #ece6f7;
+  --muted: #9a8bb8;
+  --accent: #ff79c6;
+  --accent-2: #bd93f9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+header a {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+h2 {
+  font-weight: 600;
+}
+
+a {
+  color: var(--accent-2);
+}
+
+.card-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.card-list a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.exercise {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.exercise h3 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+.description {
+  color: var(--muted);
+  margin-top: 0;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.step {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.step-label {
+  margin-bottom: 0.6rem;
+}
+
+.step-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(189, 147, 249, 0.2);
+  color: var(--accent-2);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: #1a0e15;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.drill-start {
+  margin-left: auto;
+}
+
+#drill-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 5, 14, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+#drill-overlay[hidden] {
+  display: none;
+}
+
+.drill {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: min(660px, 100%);
+  max-height: 95vh;
+  overflow: auto;
+  position: relative;
+}
+
+.drill-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.5rem;
+  padding: 0.2rem 0.6rem;
+}
+
+.drill-instruction {
+  font-size: 1.05rem;
+  margin-top: 0.5rem;
+}
+
+.drill-stage {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 620px) {
+  .drill-stage {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.drill-video,
+.drill-pitch {
+  width: 100%;
+  border-radius: 10px;
+  background: #000;
+  transform: scaleX(-1);
+}
+
+.drill-pitch {
+  transform: none;
+}
+
+.drill-readout {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0.75rem 0;
+}
+
+.drill-hz {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.drill-timer {
+  font-size: 1.5rem;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.drill-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.drill-status {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
