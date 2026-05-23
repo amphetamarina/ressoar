@@ -169,7 +169,7 @@ button:disabled {
   background: var(--surface);
   border-radius: 16px;
   padding: 1.5rem;
-  width: min(660px, 100%);
+  width: min(1100px, 100%);
   max-height: 95vh;
   overflow: auto;
   position: relative;
@@ -195,9 +195,10 @@ button:disabled {
   gap: 0.75rem;
 }
 
-@media (min-width: 620px) {
+@media (min-width: 720px) {
   .drill-stage {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1.5fr;
+    align-items: center;
   }
 }
 
@@ -221,9 +222,16 @@ button:disabled {
 }
 
 .drill-hz {
-  font-size: 2rem;
+  font-size: 2.25rem;
   font-weight: 700;
   color: var(--accent);
+}
+
+.drill-note {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .drill-timer {

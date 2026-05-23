@@ -2,6 +2,17 @@ const MIN_HZ = 80;
 const MAX_HZ = 400;
 const HISTORY = 240;
 
+const NOTES_EN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTES_PT = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
+
+function noteFromHz(hz) {
+  if (hz <= 0) return null;
+  const midi = Math.round(69 + 12 * Math.log2(hz / 440));
+  const index = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return { en: `${NOTES_EN[index]}${octave}`, pt: `${NOTES_PT[index]}${octave}` };
+}
+
 function autoCorrelate(buf, sampleRate) {
   let size = buf.length;
   let rms = 0;
@@ -87,10 +98,11 @@ class Drill {
         <p class="drill-instruction">${this.step.label.replace(/\n/g, "<br>")}</p>
         <div class="drill-stage">
           <video class="drill-video" autoplay muted playsinline></video>
-          <canvas class="drill-pitch" width="600" height="220"></canvas>
+          <canvas class="drill-pitch" width="960" height="380"></canvas>
         </div>
         <div class="drill-readout">
           <span class="drill-hz">—</span>
+          <span class="drill-note">—</span>
           <span class="drill-timer">${durationText}</span>
         </div>
         <div class="drill-controls">
@@ -105,6 +117,7 @@ class Drill {
     this.canvas = this.overlay.querySelector(".drill-pitch");
     this.ctx = this.canvas.getContext("2d");
     this.hzEl = this.overlay.querySelector(".drill-hz");
+    this.noteEl = this.overlay.querySelector(".drill-note");
     this.timerEl = this.overlay.querySelector(".drill-timer");
     this.goBtn = this.overlay.querySelector(".drill-go");
     this.stopBtn = this.overlay.querySelector(".drill-stop");
@@ -183,6 +196,8 @@ class Drill {
     this.pitches.push(hz > 0 ? hz : null);
     if (this.pitches.length > HISTORY) this.pitches.shift();
     this.hzEl.textContent = hz > 0 ? `${Math.round(hz)} Hz` : "—";
+    const note = noteFromHz(hz);
+    this.noteEl.textContent = note ? `${note.en} · ${note.pt}` : "—";
     this.drawGraph();
     this.raf = requestAnimationFrame(() => this.analyse());
   }
