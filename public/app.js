@@ -80,6 +80,29 @@ function pickMimeType() {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function slug(value) {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "sessao";
+}
+
+function el(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html.trim();
+  return tpl.content.firstElementChild;
+}
+
 class Drill {
   constructor(overlay, step) {
     this.overlay = overlay;
@@ -95,7 +118,7 @@ class Drill {
     this.overlay.innerHTML = `
       <div class="drill">
         <button class="drill-close" aria-label="Fechar">×</button>
-        <p class="drill-instruction">${this.step.label.replace(/\n/g, "<br>")}</p>
+        <p class="drill-instruction">${escapeHtml(this.step.label).replace(/\n/g, "<br>")}</p>
         <div class="drill-stage">
           <video class="drill-video" autoplay muted playsinline></video>
           <canvas class="drill-pitch" width="960" height="380"></canvas>
@@ -108,6 +131,7 @@ class Drill {
         <div class="drill-controls">
           <button class="drill-go">Pronta? Começar</button>
           <button class="drill-stop" hidden>Parar</button>
+          <a class="drill-download" hidden>Baixar gravação</a>
           <span class="drill-status"></span>
         </div>
       </div>`;
@@ -121,6 +145,7 @@ class Drill {
     this.timerEl = this.overlay.querySelector(".drill-timer");
     this.goBtn = this.overlay.querySelector(".drill-go");
     this.stopBtn = this.overlay.querySelector(".drill-stop");
+    this.downloadEl = this.overlay.querySelector(".drill-download");
     this.statusEl = this.overlay.querySelector(".drill-status");
 
     this.overlay.querySelector(".drill-close").addEventListener("click", () => this.close());
@@ -157,6 +182,7 @@ class Drill {
     this.running = true;
     this.goBtn.hidden = true;
     this.stopBtn.hidden = false;
+    this.downloadEl.hidden = true;
     this.statusEl.textContent = "Gravando…";
     this.audioCtx.resume();
 
@@ -166,7 +192,7 @@ class Drill {
     this.recorder.ondataavailable = (e) => {
       if (e.data.size > 0) this.chunks.push(e.data);
     };
-    this.recorder.onstop = () => this.upload();
+    this.recorder.onstop = () => this.finalize();
     this.recorder.start();
 
     this.pitches = new Array(HISTORY).fill(null);
@@ -213,7 +239,7 @@ class Drill {
 
     ctx.strokeStyle = "#3a2d52";
     ctx.fillStyle = "#8a7aa8";
-    ctx.font = "11px system-ui, sans-serif";
+    ctx.font = "13px 'Monaspace Radon', monospace";
     for (const hz of [100, 150, 200, 250, 300, 350]) {
       const y = h - ((hz - MIN_HZ) / (MAX_HZ - MIN_HZ)) * h;
       ctx.beginPath();
@@ -247,29 +273,29 @@ class Drill {
     clearInterval(this.countdown);
     cancelAnimationFrame(this.raf);
     this.stopBtn.disabled = true;
-    this.statusEl.textContent = "Salvando…";
+    this.statusEl.textContent = "Preparando download…";
     if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop();
   }
 
-  async upload() {
+  finalize() {
     const blob = new Blob(this.chunks, { type: this.recorder.mimeType || "video/webm" });
-    const form = new FormData();
-    form.append("sessionId", this.step.session);
-    form.append("exerciseId", this.step.exercise);
-    form.append("stepId", this.step.step);
-    form.append("video", blob, "recording.webm");
-    try {
-      const res = await fetch("/upload", { method: "POST", body: form });
-      const data = await res.json();
-      this.statusEl.textContent = `Salvo: ${data.saved.join(", ")}`;
-    } catch (err) {
-      this.statusEl.textContent = `Falha ao salvar: ${err.message}`;
-    }
+    if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+    this.objectUrl = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const name = `${this.step.fileBase}-${stamp}.webm`;
+
+    this.downloadEl.href = this.objectUrl;
+    this.downloadEl.download = name;
+    this.downloadEl.hidden = false;
+    this.downloadEl.click();
+
+    this.statusEl.textContent = "Gravação baixada. Use o botão para baixar de novo.";
     this.stopBtn.hidden = true;
     this.goBtn.hidden = false;
     this.goBtn.textContent = "Repetir";
     this.goBtn.disabled = false;
     this.stopBtn.disabled = false;
+    if (this.step.onDone) this.step.onDone();
   }
 
   close() {
@@ -279,25 +305,253 @@ class Drill {
     if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop();
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
     if (this.audioCtx) this.audioCtx.close();
+    if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.overlay.hidden = true;
     this.overlay.innerHTML = "";
   }
 }
 
-let activeDrill = null;
+const app = document.getElementById("app");
+const overlay = document.getElementById("drill-overlay");
+const fileInput = document.getElementById("file-input");
 
-document.addEventListener("click", (event) => {
-  const btn = event.target.closest(".drill-start");
-  if (!btn) return;
-  const li = btn.closest(".step");
-  const overlay = document.getElementById("drill-overlay");
-  if (activeDrill) activeDrill.close();
-  const durationAttr = li.dataset.duration;
-  activeDrill = new Drill(overlay, {
-    session: li.dataset.session,
-    exercise: li.dataset.exercise,
-    step: li.dataset.step,
-    label: li.dataset.label,
-    duration: durationAttr === "" ? null : Number(durationAttr),
+let activeDrill = null;
+let currentSession = null;
+
+function validateSession(data) {
+  if (!data || typeof data.title !== "string" || !Array.isArray(data.exercises)) {
+    throw new Error("Formato inválido: faltam 'title' ou 'exercises'.");
+  }
+  for (const exercise of data.exercises) {
+    if (typeof exercise.title !== "string" || !Array.isArray(exercise.steps)) {
+      throw new Error("Cada exercício precisa de 'title' e 'steps'.");
+    }
+  }
+  return data;
+}
+
+function doneKey(title) {
+  return `ressoar:done:${title}`;
+}
+
+function loadDone(title) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(doneKey(title)) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDone(title, set) {
+  localStorage.setItem(doneKey(title), JSON.stringify([...set]));
+}
+
+function renderHome() {
+  currentSession = null;
+  app.innerHTML = `
+    <section class="home">
+      <p class="tagline">Treinos de feminização vocal com pitch ao vivo, câmera e checklist.</p>
+      <div class="home-actions">
+        <button id="btn-load" class="primary">Carregar Sessão</button>
+        <button id="btn-create" class="primary">Criar Sessão</button>
+      </div>
+      <div class="home-example">
+        <span>Sem arquivo? Comece com o exemplo:</span>
+        <button id="btn-example" class="ghost">Abrir 2ª Sessão de exemplo</button>
+      </div>
+    </section>`;
+
+  document.getElementById("btn-load").addEventListener("click", () => fileInput.click());
+  document.getElementById("btn-create").addEventListener("click", renderCreate);
+  document.getElementById("btn-example").addEventListener("click", async () => {
+    const res = await fetch("/sessions/exemplo-2a-sessao.ressoar.json");
+    openSession(validateSession(await res.json()));
   });
+}
+
+function openSession(session) {
+  currentSession = session;
+  renderSession();
+}
+
+function renderSession() {
+  const session = currentSession;
+  const done = loadDone(session.title);
+  const total = session.exercises.reduce((n, ex) => n + ex.steps.length, 0);
+  const completed = [...done].filter((k) => k.startsWith("step:")).length;
+
+  const exercises = session.exercises
+    .map((exercise, ei) => {
+      const steps = exercise.steps
+        .map((step, si) => {
+          const key = `step:${ei}:${si}`;
+          const duration = step.duration === null ? "livre" : `${step.duration}s`;
+          const checked = done.has(key) ? "checked" : "";
+          return `<li class="step ${done.has(key) ? "is-done" : ""}" data-key="${key}" data-ex="${ei}" data-step="${si}">
+            <label class="step-check">
+              <input type="checkbox" ${checked} />
+              <span class="step-label">${escapeHtml(step.label).replace(/\n/g, "<br>")}</span>
+            </label>
+            <div class="step-meta">
+              <span class="badge">${ei + 1}.${si + 1}</span>
+              <span class="badge">${duration}</span>
+              <button class="drill-start">Começar drill</button>
+            </div>
+          </li>`;
+        })
+        .join("");
+      return `<article class="exercise">
+        <h3>${ei + 1}. ${escapeHtml(exercise.title)}</h3>
+        ${exercise.description ? `<p class="description">${escapeHtml(exercise.description)}</p>` : ""}
+        <ul class="steps">${steps}</ul>
+      </article>`;
+    })
+    .join("");
+
+  app.innerHTML = `
+    <section class="session">
+      <button class="back ghost">← Início</button>
+      <div class="session-head">
+        <h2>${escapeHtml(session.title)}</h2>
+        <span class="progress">${completed}/${total} feitos</span>
+      </div>
+      ${exercises}
+    </section>`;
+
+  app.querySelector(".back").addEventListener("click", renderHome);
+
+  app.querySelectorAll(".step input[type=checkbox]").forEach((box) => {
+    box.addEventListener("change", (event) => {
+      const li = event.target.closest(".step");
+      const set = loadDone(session.title);
+      if (event.target.checked) set.add(li.dataset.key);
+      else set.delete(li.dataset.key);
+      saveDone(session.title, set);
+      renderSession();
+    });
+  });
+
+  app.querySelectorAll(".drill-start").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest(".step");
+      const ei = Number(li.dataset.ex);
+      const si = Number(li.dataset.step);
+      const step = session.exercises[ei].steps[si];
+      if (activeDrill) activeDrill.close();
+      activeDrill = new Drill(overlay, {
+        label: step.label,
+        duration: step.duration ?? null,
+        fileBase: `${slug(session.title)}-${ei + 1}.${si + 1}`,
+        onDone: () => {
+          const set = loadDone(session.title);
+          set.add(li.dataset.key);
+          saveDone(session.title, set);
+        },
+      });
+    });
+  });
+}
+
+function stepEditor() {
+  return el(`
+    <li class="step-edit">
+      <textarea class="step-label-input" rows="2" placeholder="Instrução do exercício"></textarea>
+      <div class="step-edit-meta">
+        <input class="step-duration-input" type="number" min="1" placeholder="segundos" />
+        <label class="free-toggle"><input type="checkbox" class="step-free-input" /> Tempo livre</label>
+        <button class="ghost remove-step">Remover passo</button>
+      </div>
+    </li>`);
+}
+
+function exerciseEditor() {
+  const node = el(`
+    <article class="exercise-edit">
+      <input class="ex-title-input" placeholder="Título do exercício" />
+      <textarea class="ex-desc-input" rows="2" placeholder="Descrição (opcional)"></textarea>
+      <ul class="steps-edit"></ul>
+      <div class="exercise-edit-actions">
+        <button class="ghost add-step">+ Passo</button>
+        <button class="ghost remove-exercise">Remover exercício</button>
+      </div>
+    </article>`);
+  const stepsList = node.querySelector(".steps-edit");
+  stepsList.appendChild(stepEditor());
+  node.querySelector(".add-step").addEventListener("click", () => stepsList.appendChild(stepEditor()));
+  node.addEventListener("click", (event) => {
+    if (event.target.classList.contains("remove-step")) {
+      event.target.closest(".step-edit").remove();
+    }
+    if (event.target.classList.contains("remove-exercise")) {
+      node.remove();
+    }
+  });
+  return node;
+}
+
+function collectDraft() {
+  const title = app.querySelector(".session-title-input").value.trim() || "Sessão sem título";
+  const exercises = [...app.querySelectorAll(".exercise-edit")].map((exNode) => ({
+    title: exNode.querySelector(".ex-title-input").value.trim() || "Exercício",
+    description: exNode.querySelector(".ex-desc-input").value.trim(),
+    steps: [...exNode.querySelectorAll(".step-edit")].map((stepNode) => {
+      const free = stepNode.querySelector(".step-free-input").checked;
+      const durationValue = Number(stepNode.querySelector(".step-duration-input").value);
+      return {
+        label: stepNode.querySelector(".step-label-input").value.trim(),
+        duration: free || !durationValue ? null : durationValue,
+      };
+    }),
+  }));
+  return { title, createdAt: new Date().toISOString().slice(0, 10), exercises };
+}
+
+function renderCreate() {
+  app.innerHTML = `
+    <section class="create">
+      <button class="back ghost">← Início</button>
+      <h2>Criar Sessão</h2>
+      <input class="session-title-input" placeholder="Título da sessão" />
+      <div id="exercises-editor"></div>
+      <button id="add-exercise" class="ghost">+ Exercício</button>
+      <div class="create-actions">
+        <button id="start-draft" class="primary">Iniciar agora</button>
+        <button id="download-draft" class="primary">Baixar Sessão (.ressoar.json)</button>
+      </div>
+    </section>`;
+
+  const editor = document.getElementById("exercises-editor");
+  editor.appendChild(exerciseEditor());
+
+  app.querySelector(".back").addEventListener("click", renderHome);
+  document.getElementById("add-exercise").addEventListener("click", () => editor.appendChild(exerciseEditor()));
+  document.getElementById("start-draft").addEventListener("click", () => openSession(validateSession(collectDraft())));
+  document.getElementById("download-draft").addEventListener("click", () => {
+    const session = validateSession(collectDraft());
+    const date = new Date();
+    const stamp = `${String(date.getDate()).padStart(2, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
+    const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slug(session.title)}-${stamp}.ressoar.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+fileInput.addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const session = validateSession(JSON.parse(await file.text()));
+    openSession(session);
+  } catch (err) {
+    alert(`Não foi possível carregar a sessão: ${err.message}`);
+  }
+  fileInput.value = "";
 });
+
+document.getElementById("home-link").addEventListener("click", renderHome);
+
+renderHome();

@@ -1,84 +1,30 @@
-import { mkdir } from "node:fs/promises";
-import { join, extname } from "node:path";
-import { findSession, sessions } from "./exercises";
-import { page, renderHome, renderSession } from "./views";
+import { join, extname, normalize } from "node:path";
 
 const PUBLIC_DIR = join(import.meta.dir, "..", "public");
-const RECORDINGS_DIR = join(import.meta.dir, "..", "recordings");
-
-await mkdir(RECORDINGS_DIR, { recursive: true });
 
 const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".woff2": "font/woff2",
 };
 
-async function serveStatic(pathname: string): Promise<Response | null> {
-  const file = Bun.file(join(PUBLIC_DIR, pathname));
+async function serveFile(pathname: string): Promise<Response | null> {
+  const relative = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
+  const file = Bun.file(join(PUBLIC_DIR, relative));
   if (!(await file.exists())) return null;
-  const type = CONTENT_TYPES[extname(pathname)] ?? file.type;
+  const type = CONTENT_TYPES[extname(relative)] ?? file.type;
   return new Response(file, { headers: { "content-type": type } });
-}
-
-function safeName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-async function handleUpload(req: Request): Promise<Response> {
-  const form = await req.formData();
-  const audio = form.get("audio");
-  const video = form.get("video");
-  const sessionId = safeName(String(form.get("sessionId") ?? "session"));
-  const exerciseId = safeName(String(form.get("exerciseId") ?? "exercise"));
-  const stepId = safeName(String(form.get("stepId") ?? "step"));
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const base = `${sessionId}__${exerciseId}__${stepId}__${stamp}`;
-
-  const saved: string[] = [];
-  if (video instanceof File && video.size > 0) {
-    const name = `${base}.webm`;
-    await Bun.write(join(RECORDINGS_DIR, name), video);
-    saved.push(name);
-  }
-  if (audio instanceof File && audio.size > 0) {
-    const name = `${base}.audio.webm`;
-    await Bun.write(join(RECORDINGS_DIR, name), audio);
-    saved.push(name);
-  }
-
-  return Response.json({ ok: true, saved });
 }
 
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3000),
   async fetch(req) {
     const url = new URL(req.url);
-
-    if (req.method === "POST" && url.pathname === "/upload") {
-      return handleUpload(req);
-    }
-
-    const partial = req.headers.get("HX-Request") === "true";
-    const html = (body: string) =>
-      new Response(partial ? body : page(body), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
-
-    if (url.pathname === "/") {
-      return html(renderHome(sessions));
-    }
-
-    const sessionMatch = url.pathname.match(/^\/session\/([^/]+)$/);
-    if (sessionMatch) {
-      const session = findSession(sessionMatch[1]);
-      if (!session) return new Response("Not found", { status: 404 });
-      return html(renderSession(session));
-    }
-
-    const asset = await serveStatic(url.pathname);
-    if (asset) return asset;
-
+    const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+    const file = await serveFile(pathname);
+    if (file) return file;
     return new Response("Not found", { status: 404 });
   },
 });
