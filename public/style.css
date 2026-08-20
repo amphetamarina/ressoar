@@ -431,6 +431,39 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.mic-access {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.mic-access[hidden] {
+  display: none;
+}
+
+.mic-access.has-error {
+  border: 1px solid #ff9fbc;
+  color: var(--text);
+}
+
+.mic-retry {
+  flex: none;
+}
+
+@media (max-width: 600px) {
+  .mic-access {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .drill-stage {
   display: block;
 }
@@ -471,6 +504,60 @@ select:focus {
   touch-action: none;
   cursor: crosshair;
   border: 1px solid var(--surface-2);
+}
+
+.fullness-axis-key {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.fullness-axis-key span {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.fullness-range-legend {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  color: var(--text);
+  font-size: 0.78rem;
+  flex-wrap: wrap;
+}
+
+.fullness-range-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fullness-range-legend i {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+}
+
+.range-feminine {
+  background: rgba(255, 121, 198, 0.8);
+}
+
+.range-androgynous {
+  background: rgba(139, 233, 253, 0.72);
+}
+
+.range-masculine {
+  background: rgba(189, 147, 249, 0.8);
+}
+
+.fullness-range-caveat {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .fullness-map:focus {
@@ -530,6 +617,7 @@ select:focus {
 }
 
 @media (max-width: 700px) {
+  .fullness-axis-key,
   .spectrum-readouts {
     grid-template-columns: 1fr;
   }
@@ -594,6 +682,12 @@ select:focus {
 
 .take-rating {
   grid-column: 1 / -1;
+}
+
+.current-take[hidden],
+.anchor-save[hidden],
+.take-rating[hidden] {
+  display: none;
 }
 
 .rating-fields {

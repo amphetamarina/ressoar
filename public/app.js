@@ -94,7 +94,14 @@ const I18N = {
     spectrumView: "Espectro",
     fullnessView: "Mapa de plenitude",
     fullnessMapGraph: "Mapa interativo de tamanho e peso vocal",
+    sizeAxisHelp: "↕ Tamanho vocal: menor no topo → maior na base",
+    weightAxisHelp: "↔ Peso vocal: leve à esquerda → pesado à direita",
     fullnessMapHelp: "Clique ou toque para posicionar o alvo. No teclado, use as setas.",
+    voiceRanges: "Faixas de apresentação vocal",
+    rangeFeminine: "feminina",
+    rangeAndrogynous: "não binária / andrógina",
+    rangeMasculine: "masculina",
+    rangeCaveat: "Guias perceptivos amplos, não classificações de gênero. Vozes não binárias podem ocupar qualquer parte do mapa.",
     mapCurrent: "Agora",
     mapTarget: "Alvo",
     mapBalanced: "pleno",
@@ -114,6 +121,12 @@ const I18N = {
     stop: "Parar",
     downloadRecording: "Baixar gravação",
     noMedia: "Sem acesso ao microfone:",
+    micConnecting: "Conectando ao microfone…",
+    micPermissionDenied: "O microfone está bloqueado para este endereço. Abra as permissões do site, permita Microfone e tente novamente.",
+    micNotFound: "Nenhum microfone foi encontrado. Conecte ou habilite uma entrada e tente novamente.",
+    micUnavailable: "O microfone está ocupado ou indisponível. Feche outros aplicativos que possam estar usando-o e tente novamente.",
+    micUnsupported: "O microfone exige localhost ou HTTPS e um navegador compatível.",
+    retryMicrophone: "Tentar microfone novamente",
     noRecorder: "Este navegador não oferece suporte à gravação de mídia.",
     recordingFailed: "Não foi possível iniciar a gravação:",
     recording: "Gravando…",
@@ -208,7 +221,14 @@ const I18N = {
     spectrumView: "Spectrum",
     fullnessView: "Fullness map",
     fullnessMapGraph: "Interactive vocal size and weight map",
+    sizeAxisHelp: "↕ Vocal size: smaller at the top → larger at the bottom",
+    weightAxisHelp: "↔ Vocal weight: light on the left → heavy on the right",
     fullnessMapHelp: "Click or tap to place the target. With a keyboard, use the arrow keys.",
+    voiceRanges: "Vocal presentation ranges",
+    rangeFeminine: "feminine-leaning",
+    rangeAndrogynous: "non-binary / androgynous",
+    rangeMasculine: "masculine-leaning",
+    rangeCaveat: "Broad perceptual guides, not gender classifications. Non-binary voices can occupy any part of the map.",
     mapCurrent: "Current",
     mapTarget: "Target",
     mapBalanced: "full",
@@ -228,6 +248,12 @@ const I18N = {
     stop: "Stop",
     downloadRecording: "Download recording",
     noMedia: "No microphone access:",
+    micConnecting: "Connecting to the microphone…",
+    micPermissionDenied: "The microphone is blocked for this address. Open site permissions, allow Microphone, and try again.",
+    micNotFound: "No microphone was found. Connect or enable an input and try again.",
+    micUnavailable: "The microphone is busy or unavailable. Close other apps that may be using it and try again.",
+    micUnsupported: "Microphone access requires localhost or HTTPS and a compatible browser.",
+    retryMicrophone: "Try microphone again",
     noRecorder: "This browser does not support media recording.",
     recordingFailed: "Could not start recording:",
     recording: "Recording…",
@@ -421,6 +447,18 @@ function metricBadges(metrics) {
     <span class="badge">${t("weightReadout")}: ${Math.round(metrics.weightPosition * 100)}%</span>`;
 }
 
+function microphoneErrorMessage(error) {
+  if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia || error?.name === "UnsupportedError") {
+    return t("micUnsupported");
+  }
+  if (["NotAllowedError", "PermissionDeniedError", "SecurityError"].includes(error?.name)) {
+    return `${t("micPermissionDenied")} (${location.origin})`;
+  }
+  if (["NotFoundError", "DevicesNotFoundError"].includes(error?.name)) return t("micNotFound");
+  if (["NotReadableError", "TrackStartError", "AbortError"].includes(error?.name)) return t("micUnavailable");
+  return `${t("noMedia")} ${error?.message ?? error?.name ?? ""}`.trim();
+}
+
 function noteFromHz(hz) {
   if (hz <= 0) return null;
   const midi = Math.round(69 + 12 * Math.log2(hz / 440));
@@ -576,6 +614,10 @@ class Drill {
           <span class="badge">${modeLabel(this.step.mode)}</span>
           <span class="badge">${phaseLabel(this.step.phase)}</span>
         </div>
+        <div class="mic-access">
+          <span class="mic-access-message" role="status" aria-live="polite">${t("micConnecting")}</span>
+          <button class="mic-retry ghost" hidden>${t("retryMicrophone")}</button>
+        </div>
         <div class="analysis-tabs" role="tablist" aria-label="${t("trainingMode")}">
           <button class="analysis-tab" role="tab" data-view="pitch">${t("pitchView")}</button>
           <button class="analysis-tab" role="tab" data-view="spectrum">${t("spectrumView")}</button>
@@ -596,7 +638,17 @@ class Drill {
             </div>
           </section>
           <section class="analysis-panel" role="tabpanel" data-panel="fullness">
+            <div class="fullness-axis-key">
+              <span>${t("sizeAxisHelp")}</span>
+              <span>${t("weightAxisHelp")}</span>
+            </div>
             <canvas class="fullness-map" width="760" height="500" tabindex="0" role="img" aria-label="${t("fullnessMapGraph")}"></canvas>
+            <div class="fullness-range-legend" aria-label="${t("voiceRanges")}">
+              <span><i class="range-feminine" aria-hidden="true"></i>${t("rangeFeminine")}</span>
+              <span><i class="range-androgynous" aria-hidden="true"></i>${t("rangeAndrogynous")}</span>
+              <span><i class="range-masculine" aria-hidden="true"></i>${t("rangeMasculine")}</span>
+            </div>
+            <p class="fullness-range-caveat">${t("rangeCaveat")}</p>
             <p class="fullness-map-help">${t("fullnessMapHelp")}</p>
             <p class="fullness-map-status" role="status">${t("waitingForVoice")}</p>
           </section>
@@ -662,6 +714,9 @@ class Drill {
     this.hzEl = this.overlay.querySelector(".drill-hz");
     this.noteEl = this.overlay.querySelector(".drill-note");
     this.timerEl = this.overlay.querySelector(".drill-timer");
+    this.micAccess = this.overlay.querySelector(".mic-access");
+    this.micMessage = this.overlay.querySelector(".mic-access-message");
+    this.micRetryBtn = this.overlay.querySelector(".mic-retry");
     this.goBtn = this.overlay.querySelector(".drill-go");
     this.stopBtn = this.overlay.querySelector(".drill-stop");
     this.feedbackBtn = this.overlay.querySelector(".drill-feedback");
@@ -681,6 +736,7 @@ class Drill {
     this.saveRatingBtn = this.overlay.querySelector(".save-rating");
 
     this.closeBtn.addEventListener("click", () => this.close());
+    this.micRetryBtn.addEventListener("click", () => this.openMedia());
     this.goBtn.addEventListener("click", () => this.start());
     this.stopBtn.addEventListener("click", () => this.stop());
     this.feedbackBtn.addEventListener("click", () => this.toggleFeedback());
@@ -732,7 +788,20 @@ class Drill {
   }
 
   async openMedia() {
+    if (this.closed || this.stream || this.openingMedia) return;
+    this.openingMedia = true;
+    this.goBtn.disabled = true;
+    this.micAccess.hidden = false;
+    this.micAccess.classList.remove("has-error");
+    this.micMessage.textContent = t("micConnecting");
+    this.micRetryBtn.hidden = true;
+    this.micRetryBtn.disabled = true;
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        const error = new Error(t("micUnsupported"));
+        error.name = "UnsupportedError";
+        throw error;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: false,
         audio: {
@@ -747,11 +816,18 @@ class Drill {
       }
       this.stream = stream;
     } catch (err) {
-      this.statusEl.textContent = `${t("noMedia")} ${err.message}`;
+      if (this.closed) return;
+      this.micMessage.textContent = microphoneErrorMessage(err);
+      this.micAccess.classList.add("has-error");
+      this.micRetryBtn.hidden = false;
       this.goBtn.disabled = true;
-      this.closeBtn.focus();
+      this.micRetryBtn.focus({ preventScroll: true });
       return;
+    } finally {
+      this.openingMedia = false;
+      this.micRetryBtn.disabled = false;
     }
+    this.micAccess.hidden = true;
     this.audioCtx = new AudioContext();
     const source = this.audioCtx.createMediaStreamSource(this.stream);
     this.analyser = this.audioCtx.createAnalyser();
@@ -761,7 +837,7 @@ class Drill {
     this.buffer = new Float32Array(this.analyser.fftSize);
     this.frequencyBuffer = new Float32Array(this.analyser.frequencyBinCount);
     this.goBtn.disabled = false;
-    this.goBtn.focus();
+    this.goBtn.focus({ preventScroll: true });
   }
 
   async loadAnchors(selectedId = "") {
@@ -1153,12 +1229,26 @@ class Drill {
     ctx.fillStyle = horizontal;
     ctx.fillRect(left, top, width, height);
 
-    ctx.strokeStyle = "rgba(189, 147, 249, 0.34)";
-    ctx.lineWidth = 48;
+    ctx.strokeStyle = "rgba(236, 230, 247, 0.12)";
+    ctx.lineWidth = 64;
     ctx.beginPath();
     ctx.moveTo(left, top);
     ctx.lineTo(right, bottom);
     ctx.stroke();
+
+    ctx.lineCap = "butt";
+    for (const range of [
+      { start: 0.04, end: 0.38, color: "rgba(255, 121, 198, 0.52)" },
+      { start: 0.34, end: 0.68, color: "rgba(139, 233, 253, 0.42)" },
+      { start: 0.64, end: 0.96, color: "rgba(189, 147, 249, 0.5)" },
+    ]) {
+      ctx.strokeStyle = range.color;
+      ctx.lineWidth = 52;
+      ctx.beginPath();
+      ctx.moveTo(left + width * range.start, top + height * range.start);
+      ctx.lineTo(left + width * range.end, top + height * range.end);
+      ctx.stroke();
+    }
 
     ctx.strokeStyle = "#5b4777";
     ctx.lineWidth = 2;
@@ -1191,7 +1281,7 @@ class Drill {
     ctx.rotate(Math.atan2(height, width));
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(216, 194, 255, 0.9)";
-    ctx.fillText(t("mapBalanced"), 0, -10);
+    ctx.fillText(t("mapBalanced"), 0, -12);
     ctx.restore();
 
     const targetX = left + this.fullnessTarget.weight * width;

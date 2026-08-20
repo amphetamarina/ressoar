@@ -67,6 +67,37 @@ test("recordings cancel on close and download once on stop", async ({ baseURL, c
   expect(await page.evaluate(() => localStorage.getItem("ressoar:done:example-glissando"))).toBe('["step:0:0"]');
 });
 
+test("blocked microphone access is explained and can be retried", async ({ page }) => {
+  await page.evaluate(() => {
+    window.__microphoneAttempts = 0;
+    navigator.mediaDevices.getUserMedia = async () => {
+      window.__microphoneAttempts += 1;
+      if (window.__microphoneAttempts === 1) {
+        throw new DOMException("Permission denied", "NotAllowedError");
+      }
+      const sourceContext = new AudioContext();
+      const oscillator = sourceContext.createOscillator();
+      const destination = sourceContext.createMediaStreamDestination();
+      oscillator.connect(destination);
+      oscillator.start();
+      window.__retrySource = { sourceContext, oscillator };
+      return destination.stream;
+    };
+  });
+
+  await openExample(page);
+  await page.locator(".drill-start").click();
+  await expect(page.locator(".mic-access")).toContainText("microfone está bloqueado");
+  await expect(page.locator(".mic-retry")).toBeVisible();
+  await expect(page.locator(".drill-go")).toBeDisabled();
+  await expectNoAxeViolations(page);
+
+  await page.locator(".mic-retry").click();
+  await waitForMedia(page);
+  await expect(page.locator(".mic-access")).toBeHidden();
+  expect(await page.evaluate(() => window.__microphoneAttempts)).toBe(2);
+});
+
 test("pitch tracking remains accurate at a throttled sample rate", async ({ page }) => {
   await page.evaluate(() => {
     window.__analysisCalls = 0;
@@ -191,6 +222,15 @@ test("fullness drills open an interactive persistent size-weight map", async ({ 
   await page.locator(".drill-start").click();
   await waitForMedia(page);
   await expect(page.locator('[data-panel="fullness"]')).toBeVisible();
+  await expect(page.locator(".current-take")).toBeHidden();
+  await expect(page.locator(".anchor-save")).toBeHidden();
+  await expect(page.locator(".take-rating")).toBeHidden();
+  await expect(page.locator(".fullness-axis-key")).toContainText("Tamanho vocal: menor no topo");
+  await expect(page.locator(".fullness-axis-key")).toContainText("Peso vocal: leve à esquerda");
+  await expect(page.locator(".fullness-range-legend")).toContainText("feminina");
+  await expect(page.locator(".fullness-range-legend")).toContainText("não binária / andrógina");
+  await expect(page.locator(".fullness-range-legend")).toContainText("masculina");
+  await expectNoAxeViolations(page);
   const map = page.locator(".fullness-map");
   const box = await map.boundingBox();
   await map.click({ position: { x: box.width * 0.72, y: box.height * 0.25 } });

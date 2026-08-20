@@ -120,6 +120,10 @@ bun run dev         # starts the server with hot reload
 Then open the printed URL (default http://localhost:3000). The microphone works
 on `localhost` without HTTPS.
 
+If **Ready? Start** remains disabled, check the message at the top of the drill.
+When microphone access was previously blocked, allow it in the browser's site
+permissions for the exact localhost port, then use **Try microphone again**.
+
 ## Testing
 
 The Playwright suite starts the local server and covers the main session,
