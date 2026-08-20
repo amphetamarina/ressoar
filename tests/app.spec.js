@@ -207,6 +207,49 @@ test("fullness drills open an interactive persistent size-weight map", async ({ 
   await expect(page.locator(".fullness-map-status")).toContainText("Agora:");
 });
 
+test("built-in foundations save rated cold-start takes to retention history", async ({ page }) => {
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const sourceContext = new AudioContext();
+      const oscillator = sourceContext.createOscillator();
+      const destination = sourceContext.createMediaStreamDestination();
+      oscillator.frequency.value = 175;
+      oscillator.connect(destination);
+      oscillator.start();
+      window.__historySource = { sourceContext, oscillator };
+      return destination.stream;
+    };
+  });
+
+  await page.locator("#btn-program").click();
+  await expect(page.locator(".session-head h2")).toHaveText("Fundamentos: tamanho, peso e plenitude");
+  await expect(page.locator(".step").first().locator(".badge-phase")).toHaveText("Início sem aquecimento");
+
+  await page.locator(".drill-start").first().click();
+  await waitForMedia(page);
+  await page.locator(".drill-go").click();
+  await page.waitForTimeout(250);
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator(".drill-stop").click();
+  await downloadPromise;
+
+  await page.locator(".rating-ease").selectOption("4");
+  await page.locator(".rating-stability").selectOption("2");
+  await page.locator(".rating-satisfaction").selectOption("5");
+  await page.locator(".save-rating").click();
+  await expect(page.locator(".drill-status")).toHaveText("Avaliação salva.");
+
+  await page.locator(".drill-close").click();
+  await page.locator("#home-link").click();
+  await page.locator("#btn-history").click();
+
+  await expect(page.locator(".history-card")).toHaveCount(1);
+  await expect(page.locator(".retention-card").first()).toContainText("175 Hz");
+  await expect(page.locator(".history-card")).toContainText("Facilidade: 4/5");
+  await expect(page.locator(".history-card audio")).toBeVisible();
+  await expectNoAxeViolations(page);
+});
+
 test("primary views have accessible semantics and modal focus behavior", async ({ baseURL, context, page }) => {
   await context.grantPermissions(["microphone"], { origin: baseURL });
   await expectNoAxeViolations(page);
@@ -328,4 +371,8 @@ test("mobile editor avoids overflow and floating-control overlap", async ({ page
   expect(layout.bodyWidth).toBe(layout.viewportWidth);
   expect(layout.githubPosition).toBe("static");
   expect(layout.overlaps).toBe(false);
+
+  await page.locator("#home-link").click();
+  await page.locator("#btn-program").click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });

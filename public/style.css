@@ -165,6 +165,12 @@ select:focus {
   border-top: 1px solid var(--surface-2);
 }
 
+.program-button {
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 1rem;
+}
+
 .session-head {
   display: flex;
   align-items: baseline;
@@ -237,6 +243,7 @@ select:focus {
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .badge {
@@ -575,13 +582,29 @@ select:focus {
 
 .reference-take,
 .current-take,
-.anchor-save {
+.anchor-save,
+.take-rating {
   min-width: 0;
   display: grid;
   gap: 0.4rem;
   align-content: start;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.take-rating {
+  grid-column: 1 / -1;
+}
+
+.rating-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.rating-fields label {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .reference-take label,
@@ -625,9 +648,70 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.history-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.8fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.history-card h3,
+.history-card p {
+  margin: 0 0 0.35rem;
+}
+
+.history-card h3,
+.retention-overview h3 {
+  color: var(--accent);
+}
+
+.history-card time {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.history-card audio {
+  width: 100%;
+}
+
+.history-badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.retention-overview {
+  margin: 1.25rem 0;
+}
+
+.retention-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.retention-card {
+  padding: 0.8rem;
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.retention-card h4,
+.retention-card p {
+  margin: 0 0 0.4rem;
+}
+
 @media (max-width: 700px) {
   .take-comparison,
-  .anchor-card {
+  .anchor-card,
+  .history-card,
+  .rating-fields,
+  .retention-grid {
     grid-template-columns: 1fr;
   }
 }

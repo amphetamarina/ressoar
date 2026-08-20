@@ -5,9 +5,9 @@ through drills, runs live voice analysis while you speak, and lets you keep
 audio recordings of your own takes. It is built for trans women and anyone working toward a more feminine
 voice, at their own pace, with no account and no data leaving the device.
 
-The name comes from the Portuguese word for "to resonate." Resonance, not just
-pitch, is what makes a voice read as feminine, and this tool is meant to help
-you hear and see both.
+The name comes from the Portuguese word for "to resonate." The app treats
+pitch, vocal size, vocal weight, and fullness as related but independently
+trainable parts of a voice, with your own ear as the final reference.
 
 ## What it does
 
@@ -29,6 +29,11 @@ you hear and see both.
   let you place a persistent practice target with pointer or keyboard controls.
 - **Checklist progress.** Mark off the steps you have completed. Progress is
   saved in your browser per session.
+- **Built-in foundations.** A complete routine moves from a cold-start sample
+  through weight, size, fullness, integration, and delayed recall.
+- **Retention history.** Takes, acoustic summaries, and optional ease,
+  stability, and satisfaction ratings stay local for cold/working/recall
+  comparison.
 - **Your own sessions.** Load a session from a file, or build one in the editor
   and download it to reuse and share.
 - **Portuguese and English.** The interface defaults to Portuguese; use the
@@ -38,19 +43,23 @@ you hear and see both.
 
 Everything runs in your browser. Your microphone is used only to
 draw the live analysis and to create recordings that download straight to your
-device. There is no server storing your audio, video, or progress. If you host
-the app yourself, the same is true: the deployed copy serves static files only.
+device. Saved anchors, practice-history audio, ratings, and checklist progress
+stay in that browser's local storage. Nothing is uploaded to a server. Clearing
+site data removes those local records; downloaded recordings remain on your
+device. If you host the app yourself, the deployed copy still serves static
+files only.
 
 ## Using the app
 
-1. On the home screen, choose **Load Session**, **Create Session**, or open the
-   built-in Glissando example.
+1. On the home screen, open the built-in foundations, choose **Load Session**
+   or **Create Session**, or try the Glissando example.
 2. In a session, each step has a checkbox and a **Start drill** button.
 3. When you open a drill, allow microphone access. Press
    **Ready? Start** to begin. The timer runs, the pitch graph draws live, and
    recording begins automatically.
 4. When the timer ends (or you press **Stop**), the recording downloads to your
-   device. Use **Download recording** to save it again if needed.
+   device and appears in local practice history. Optionally rate its ease,
+   stability, and satisfaction or save it as a voice anchor.
 5. Check off steps as you finish them. Your progress is remembered the next time
    you open the same session in the same browser.
 

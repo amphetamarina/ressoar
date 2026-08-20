@@ -40,8 +40,23 @@ const I18N = {
     anchorSmaller: "Som menor",
     anchorLighter: "Som mais leve",
     anchorHeavier: "Som mais pesado",
+    rateTake: "Avaliar tomada",
+    ratingEase: "Facilidade",
+    ratingStability: "Estabilidade",
+    ratingSatisfaction: "Satisfação",
+    saveRating: "Salvar avaliação",
+    ratingSaved: "Avaliação salva.",
     noFile: "Sem arquivo? Comece com o exemplo:",
     openExample: "Abrir exemplo (Glissando)",
+    builtInProgram: "Abrir fundamentos de tamanho, peso e plenitude",
+    practiceHistory: "Histórico de prática",
+    historyTitle: "Histórico de prática",
+    historyIntro: "Compare inícios sem aquecimento, voz de trabalho e retomadas. Áudios ficam apenas neste navegador.",
+    noHistory: "Nenhuma tomada no histórico ainda.",
+    retentionSummary: "Retenção mais recente",
+    noCheckpoint: "Ainda sem tomada",
+    deleteTake: "Excluir tomada",
+    deleteTakeConfirm: "Excluir esta tomada e seu áudio deste navegador?",
     back: "← Início",
     done: "feitos",
     free: "livre",
@@ -139,8 +154,23 @@ const I18N = {
     anchorSmaller: "Smaller sound",
     anchorLighter: "Lighter sound",
     anchorHeavier: "Heavier sound",
+    rateTake: "Rate take",
+    ratingEase: "Ease",
+    ratingStability: "Stability",
+    ratingSatisfaction: "Satisfaction",
+    saveRating: "Save rating",
+    ratingSaved: "Rating saved.",
     noFile: "No file? Start with the example:",
     openExample: "Open example (Glissando)",
+    builtInProgram: "Open size, weight, and fullness foundations",
+    practiceHistory: "Practice history",
+    historyTitle: "Practice history",
+    historyIntro: "Compare cold starts, working voice, and recall. Audio stays only in this browser.",
+    noHistory: "No takes in practice history yet.",
+    retentionSummary: "Latest retention checkpoints",
+    noCheckpoint: "No take yet",
+    deleteTake: "Delete take",
+    deleteTakeConfirm: "Delete this take and its audio from this browser?",
     back: "← Home",
     done: "done",
     free: "free",
@@ -376,6 +406,21 @@ function voiceStoreDelete(storeName, id) {
   return voiceStoreRequest(storeName, "readwrite", (store) => store.delete(id));
 }
 
+function ratingOptions(selected = 3) {
+  return [1, 2, 3, 4, 5]
+    .map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${value}</option>`)
+    .join("");
+}
+
+function metricBadges(metrics) {
+  if (!metrics) return "";
+  return `<span class="badge">${metrics.pitch} Hz</span>
+    <span class="badge">R1 ~ ${metrics.r1}</span>
+    <span class="badge">R2 ~ ${metrics.r2}</span>
+    <span class="badge">${t("sizeReadout")}: ${Math.round(metrics.sizePosition * 100)}%</span>
+    <span class="badge">${t("weightReadout")}: ${Math.round(metrics.weightPosition * 100)}%</span>`;
+}
+
 function noteFromHz(hz) {
   if (hz <= 0) return null;
   const midi = Math.round(69 + 12 * Math.log2(hz / 440));
@@ -586,6 +631,15 @@ class Drill {
             </label>
             <button class="anchor-save-button ghost">${t("saveAnchor")}</button>
           </div>
+          <div class="take-rating" hidden>
+            <span>${t("rateTake")}</span>
+            <div class="rating-fields">
+              <label>${t("ratingEase")}<select class="rating-ease">${ratingOptions()}</select></label>
+              <label>${t("ratingStability")}<select class="rating-stability">${ratingOptions()}</select></label>
+              <label>${t("ratingSatisfaction")}<select class="rating-satisfaction">${ratingOptions()}</select></label>
+            </div>
+            <button class="save-rating ghost">${t("saveRating")}</button>
+          </div>
         </section>
       </div>`;
     this.overlay.hidden = false;
@@ -620,6 +674,11 @@ class Drill {
     this.anchorSave = this.overlay.querySelector(".anchor-save");
     this.anchorKind = this.overlay.querySelector(".anchor-kind");
     this.anchorSaveBtn = this.overlay.querySelector(".anchor-save-button");
+    this.takeRating = this.overlay.querySelector(".take-rating");
+    this.ratingEase = this.overlay.querySelector(".rating-ease");
+    this.ratingStability = this.overlay.querySelector(".rating-stability");
+    this.ratingSatisfaction = this.overlay.querySelector(".rating-satisfaction");
+    this.saveRatingBtn = this.overlay.querySelector(".save-rating");
 
     this.closeBtn.addEventListener("click", () => this.close());
     this.goBtn.addEventListener("click", () => this.start());
@@ -627,6 +686,7 @@ class Drill {
     this.feedbackBtn.addEventListener("click", () => this.toggleFeedback());
     this.referenceSelect.addEventListener("change", () => this.selectReference(this.referenceSelect.value));
     this.anchorSaveBtn.addEventListener("click", () => this.saveAnchor());
+    this.saveRatingBtn.addEventListener("click", () => this.saveRating());
     this.fullnessCanvas.addEventListener("pointerdown", (event) => this.placeFullnessTarget(event));
     this.fullnessCanvas.addEventListener("keydown", (event) => this.moveFullnessTarget(event));
     this.overlay.querySelectorAll(".analysis-tab").forEach((button) => {
@@ -838,6 +898,25 @@ class Drill {
     }
   }
 
+  async saveRating() {
+    if (!this.takeRecord) return;
+    this.saveRatingBtn.disabled = true;
+    try {
+      await this.takeSavePromise;
+      this.takeRecord.ratings = {
+        ease: Number(this.ratingEase.value),
+        stability: Number(this.ratingStability.value),
+        satisfaction: Number(this.ratingSatisfaction.value),
+      };
+      await voiceStorePut("takes", this.takeRecord);
+      this.statusEl.textContent = t("ratingSaved");
+    } catch (error) {
+      this.statusEl.textContent = error.message;
+    } finally {
+      this.saveRatingBtn.disabled = false;
+    }
+  }
+
   setAnalysisView(viewName) {
     this.overlay.querySelectorAll(".analysis-tab").forEach((button) => {
       const selected = button.dataset.view === viewName;
@@ -891,6 +970,12 @@ class Drill {
     this.goBtn.hidden = true;
     this.stopBtn.hidden = false;
     this.downloadEl.hidden = true;
+    this.currentTake.hidden = true;
+    this.anchorSave.hidden = true;
+    this.takeRating.hidden = true;
+    this.ratingEase.value = "3";
+    this.ratingStability.value = "3";
+    this.ratingSatisfaction.value = "3";
     this.statusEl.textContent = t("recording");
     this.stopBtn.focus();
     this.audioCtx.resume();
@@ -1085,7 +1170,7 @@ class Drill {
     ctx.lineTo(left + width / 2, bottom);
     ctx.stroke();
 
-    ctx.font = "700 16px 'Monaspace Radon', monospace";
+    ctx.font = "700 26px 'Monaspace Radon', monospace";
     ctx.textAlign = "center";
     ctx.fillStyle = "#ece6f7";
     ctx.fillText(t("smaller"), left + width / 2, 28);
@@ -1095,7 +1180,7 @@ class Drill {
     ctx.textAlign = "right";
     ctx.fillText(t("heavier"), right, 455);
 
-    ctx.font = "700 15px 'Monaspace Radon', monospace";
+    ctx.font = "700 22px 'Monaspace Radon', monospace";
     ctx.fillStyle = "rgba(255, 159, 188, 0.9)";
     ctx.textAlign = "right";
     ctx.fillText(t("mapOverfull"), right - 16, top + 28);
@@ -1169,6 +1254,24 @@ class Drill {
     this.currentAudio.src = this.objectUrl;
     this.currentTake.hidden = false;
     this.anchorSave.hidden = false;
+    this.takeRating.hidden = false;
+
+    this.takeRecord = {
+      id: newSessionId(),
+      createdAt: new Date().toISOString(),
+      sessionId: this.step.sessionId,
+      sessionTitle: this.step.sessionTitle,
+      label: this.step.label,
+      mode: this.step.mode,
+      phase: this.step.phase,
+      metrics: this.summary,
+      mimeType: recordingType,
+      blob,
+    };
+    this.takeSavePromise = voiceStorePut("takes", this.takeRecord).catch((error) => {
+      this.statusEl.textContent = error.message;
+      return false;
+    });
 
     this.statusEl.textContent = t("downloaded");
     this.stopBtn.hidden = true;
@@ -1319,17 +1422,93 @@ function renderHome() {
         <span>${t("noFile")}</span>
         <button id="btn-example" class="ghost">${t("openExample")}</button>
       </div>
+      <button id="btn-program" class="program-button primary">${t("builtInProgram")}</button>
       <div class="home-tools">
         <button id="btn-anchors" class="ghost">${t("voiceAnchors")}</button>
+        <button id="btn-history" class="ghost">${t("practiceHistory")}</button>
       </div>
     </section>`;
 
   document.getElementById("btn-load").addEventListener("click", () => fileInput.click());
   document.getElementById("btn-create").addEventListener("click", () => renderCreate());
   document.getElementById("btn-anchors").addEventListener("click", () => renderAnchors());
+  document.getElementById("btn-history").addEventListener("click", () => renderHistory());
+  document.getElementById("btn-program").addEventListener("click", async () => {
+    const res = await fetch(`/sessions/fundamentos-${lang}.ressoar.json`);
+    openSession(validateSession(await res.json()));
+  });
   document.getElementById("btn-example").addEventListener("click", async () => {
     const res = await fetch("/sessions/exemplo-glissando.ressoar.json");
     openSession(validateSession(await res.json()));
+  });
+}
+
+async function renderHistory() {
+  clearViewObjectUrls();
+  view = "history";
+  currentSession = null;
+  app.innerHTML = `
+    <section class="history-view">
+      <button class="back ghost">${t("back")}</button>
+      <h2>${t("historyTitle")}</h2>
+      <p class="description">${t("historyIntro")}</p>
+      <section class="retention-overview">
+        <h3>${t("retentionSummary")}</h3>
+        <div class="retention-grid"></div>
+      </section>
+      <div class="history-list"><p class="description">${t("waitingForVoice")}</p></div>
+    </section>`;
+  app.querySelector(".back").addEventListener("click", renderHome);
+
+  let takes;
+  try {
+    takes = (await voiceStoreAll("takes")).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch (error) {
+    app.querySelector(".history-list").innerHTML = `<p class="create-error">${escapeHtml(error.message)}</p>`;
+    return;
+  }
+  if (view !== "history") return;
+
+  app.querySelector(".retention-grid").innerHTML = ["cold", "working", "recall"].map((phase) => {
+    const take = takes.find((item) => item.phase === phase);
+    return `<article class="retention-card">
+      <h4>${phaseLabel(phase)}</h4>
+      ${take ? `<div class="history-badges">${metricBadges(take.metrics)}</div>` : `<p>${t("noCheckpoint")}</p>`}
+    </article>`;
+  }).join("");
+
+  if (!takes.length) {
+    app.querySelector(".history-list").innerHTML = `<p class="description">${t("noHistory")}</p>`;
+    return;
+  }
+  app.querySelector(".history-list").innerHTML = takes.map((take) => {
+    const url = URL.createObjectURL(take.blob);
+    viewObjectUrls.push(url);
+    const ratings = take.ratings
+      ? `<span class="badge">${t("ratingEase")}: ${take.ratings.ease}/5</span><span class="badge">${t("ratingStability")}: ${take.ratings.stability}/5</span><span class="badge">${t("ratingSatisfaction")}: ${take.ratings.satisfaction}/5</span>`
+      : "";
+    return `<article class="history-card" data-id="${escapeHtml(take.id)}">
+      <div>
+        <h3>${escapeHtml(take.sessionTitle ?? t("untitledSession"))}</h3>
+        <p>${escapeHtml(take.label)}</p>
+        <time datetime="${escapeHtml(take.createdAt)}">${new Date(take.createdAt).toLocaleString(lang === "pt" ? "pt-BR" : "en-US")}</time>
+        <div class="history-badges">
+          <span class="badge">${modeLabel(take.mode ?? "integration")}</span>
+          <span class="badge">${phaseLabel(take.phase ?? "practice")}</span>
+          ${metricBadges(take.metrics)}
+          ${ratings}
+        </div>
+      </div>
+      <audio controls src="${url}"></audio>
+      <button class="delete-take ghost">${t("deleteTake")}</button>
+    </article>`;
+  }).join("");
+  app.querySelectorAll(".delete-take").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm(t("deleteTakeConfirm"))) return;
+      await voiceStoreDelete("takes", button.closest(".history-card").dataset.id);
+      renderHistory();
+    });
   });
 }
 
@@ -1461,6 +1640,8 @@ function renderSession() {
         duration: step.duration ?? null,
         mode: step.mode,
         phase: step.phase,
+        sessionId: session.id,
+        sessionTitle: session.title,
         fileBase: `${slug(session.title)}-${ei + 1}.${si + 1}`,
         onDone: () => {
           const set = loadDone(session);
@@ -1615,6 +1796,7 @@ function rerender() {
   if (view === "session" && currentSession) renderSession();
   else if (view === "create") renderCreate(collectDraft());
   else if (view === "anchors") renderAnchors();
+  else if (view === "history") renderHistory();
   else renderHome();
 }
 

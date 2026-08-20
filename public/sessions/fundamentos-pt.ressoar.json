@@ -1,0 +1,59 @@
+{
+  "id": "fundamentos-size-weight-fullness",
+  "title": "Fundamentos: tamanho, peso e plenitude",
+  "createdAt": "2026-08-20",
+  "exercises": [
+    {
+      "title": "1. Início sem aquecimento",
+      "description": "Registre onde a voz chega sozinha. Não corrija e não aqueça antes desta tomada.",
+      "steps": [
+        { "label": "Conte de 1 a 20 e fale espontaneamente por alguns segundos com a voz que apareceu hoje.", "duration": 30, "mode": "integration", "phase": "cold" }
+      ]
+    },
+    {
+      "title": "2. Fundação de peso",
+      "description": "Separe peso de pitch. Explore com conforto e mantenha o volume moderado.",
+      "steps": [
+        { "label": "Na mesma nota confortável, alterne lentamente entre um som mais pesado e um som mais leve.", "duration": 60, "mode": "weight", "phase": "practice" },
+        { "label": "Faça um deslize suave para cima e permita que o som fique mais leve; desça sem recuperar todo o peso.", "duration": 60, "mode": "weight", "phase": "practice" },
+        { "label": "Encontre um som leve e limpo, sem excesso de ar, e conte de 1 a 10 mantendo o peso.", "duration": 60, "mode": "weight", "phase": "working" }
+      ]
+    },
+    {
+      "title": "3. Tamanho vocal",
+      "description": "Explore o espaço do trato vocal antes de levar o movimento para a fala.",
+      "steps": [
+        { "label": "Com um /é/ sem voz, deslize de um espaço grande para um espaço pequeno e volte.", "duration": 60, "mode": "size", "phase": "practice" },
+        { "label": "Use pulsos suaves de /pâ/ sem voz para encontrar e repetir o ajuste menor sem apertar.", "duration": 60, "mode": "size", "phase": "practice" },
+        { "label": "Comece em /m/, abra para uma vogal e mantenha o tamanho menor durante a transição.", "duration": 60, "mode": "size", "phase": "working" },
+        { "label": "Passe lentamente por /i ê é a ó ô u/ mantendo a mesma escala geral de tamanho.", "duration": 75, "mode": "size", "phase": "working" }
+      ]
+    },
+    {
+      "title": "4. Mapa de plenitude",
+      "description": "Tamanho pequeno combina com peso leve; tamanho grande combina com peso pesado. Explore o mapa sem perseguir força ou tensão.",
+      "steps": [
+        { "label": "Visite gentilmente os quatro cantos do mapa e coloque o alvo onde sua voz desejada parece ficar.", "duration": 75, "mode": "fullness", "phase": "practice" },
+        { "label": "Parta de um som oco: mantenha o peso leve e reduza o tamanho até o som ganhar plenitude.", "duration": 75, "mode": "fullness", "phase": "practice" },
+        { "label": "Parta de um som estridente: mantenha o tamanho pequeno e reduza o peso até equilibrar.", "duration": 75, "mode": "fullness", "phase": "working" },
+        { "label": "Percorra a diagonal de grande/pesado para pequeno/leve e volte, sem sair da região plena.", "duration": 90, "mode": "fullness", "phase": "working" }
+      ]
+    },
+    {
+      "title": "5. Integração",
+      "description": "Leve a coordenação para unidades de fala cada vez maiores.",
+      "steps": [
+        { "label": "Conte, diga os dias da semana e faça três perguntas mantendo tamanho e peso coordenados.", "duration": 75, "mode": "integration", "phase": "working" },
+        { "label": "Leia um parágrafo e depois resuma com suas próprias palavras sem olhar para o feedback.", "duration": 90, "mode": "integration", "phase": "working" }
+      ]
+    },
+    {
+      "title": "6. Retomada",
+      "description": "Afaste-se por alguns minutos, fale normalmente e tente reencontrar a coordenação sem uma preparação longa.",
+      "steps": [
+        { "label": "Oculte o feedback, reencontre sua voz alvo pela memória e conte de 1 a 20.", "duration": 45, "mode": "fullness", "phase": "recall" },
+        { "label": "Fale espontaneamente por um minuto. Priorize uma retomada fácil e estável, não uma posição perfeita.", "duration": 60, "mode": "integration", "phase": "recall" }
+      ]
+    }
+  ]
+}
