@@ -17,6 +17,9 @@ you hear and see both.
 - **Live pitch tracking.** While you speak, a graph plots your pitch in real
   time across the 80-400 Hz range, with the current value shown in Hz and as a
   musical note in both English (A3) and Portuguese solfege (Lá3).
+- **Live spectrum.** A scrolling spectrogram makes harmonic and resonance
+  changes visible, with approximate R1/R2, size, and weight readouts that can
+  be hidden for ear-only practice.
 - **Recordings you control.** Each take is recorded as audio and
   downloaded to your device when you stop. Nothing is uploaded anywhere.
 - **Checklist progress.** Mark off the steps you have completed. Progress is

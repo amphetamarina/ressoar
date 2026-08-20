@@ -422,10 +422,84 @@ select:focus {
   display: block;
 }
 
-.drill-pitch {
+.analysis-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+}
+
+.analysis-tab {
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--surface-2);
+}
+
+.analysis-tab[aria-selected="true"] {
+  color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--accent-2);
+}
+
+.analysis-panel[hidden],
+.analysis-panels[hidden] {
+  display: none;
+}
+
+.drill-pitch,
+.drill-spectrum {
   width: 100%;
   border-radius: 10px;
   background: #000;
+  display: block;
+}
+
+.spectrum-wrap {
+  overflow: hidden;
+  border-radius: 10px;
+  background: #000;
+}
+
+.spectrum-readouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.spectrum-metric {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback-hidden-message {
+  min-height: 380px;
+  margin: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: #100b19;
+  text-align: center;
+  padding: 1rem;
+}
+
+.feedback-hidden-message[hidden] {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .spectrum-readouts {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-hidden-message {
+    min-height: 220px;
+  }
 }
 
 .drill-readout {

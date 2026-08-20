@@ -2,6 +2,9 @@ const MIN_HZ = 80;
 const MAX_HZ = 400;
 const HISTORY = 240;
 const PITCH_SAMPLE_INTERVAL_MS = 50;
+const SPECTRUM_MIN_HZ = 80;
+const SPECTRUM_MAX_HZ = 5000;
+const SPECTRUM_SHIFT_PX = 4;
 const STEP_MODES = ["pitch", "weight", "size", "fullness", "integration"];
 const STEP_PHASES = ["practice", "cold", "working", "recall"];
 
@@ -49,6 +52,19 @@ const I18N = {
     defaultExercise: "Exercício",
     close: "Fechar",
     pitchGraph: "Gráfico de pitch ao vivo de 80 a 400 Hz",
+    spectrumGraph: "Espectrograma ao vivo de 80 a 5000 Hz",
+    pitchView: "Pitch",
+    spectrumView: "Espectro",
+    hideFeedback: "Ocultar feedback",
+    showFeedback: "Mostrar feedback",
+    feedbackHidden: "Feedback oculto — escute e reproduza sem olhar.",
+    sizeReadout: "Tamanho",
+    weightReadout: "Peso",
+    larger: "maior",
+    smaller: "menor",
+    lighter: "leve",
+    heavier: "pesado",
+    waitingForVoice: "Aguardando voz estável…",
     drillReady: "Pronta? Começar",
     stop: "Parar",
     downloadRecording: "Baixar gravação",
@@ -108,6 +124,19 @@ const I18N = {
     defaultExercise: "Exercise",
     close: "Close",
     pitchGraph: "Live pitch graph from 80 to 400 Hz",
+    spectrumGraph: "Live spectrogram from 80 to 5000 Hz",
+    pitchView: "Pitch",
+    spectrumView: "Spectrum",
+    hideFeedback: "Hide feedback",
+    showFeedback: "Show feedback",
+    feedbackHidden: "Feedback hidden — listen and reproduce without looking.",
+    sizeReadout: "Size",
+    weightReadout: "Weight",
+    larger: "larger",
+    smaller: "smaller",
+    lighter: "light",
+    heavier: "heavy",
+    waitingForVoice: "Waiting for a stable voice…",
     drillReady: "Ready? Start",
     stop: "Stop",
     downloadRecording: "Download recording",
@@ -147,6 +176,91 @@ function selectOptions(values, labeler, selected) {
   return values
     .map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${labeler(value)}</option>`)
     .join("");
+}
+
+function clamp(value, min = 0, max = 1) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function powerFromDb(db) {
+  return Number.isFinite(db) ? 10 ** (db / 10) : 0;
+}
+
+function bandMeanPower(spectrum, binHz, fromHz, toHz) {
+  const start = Math.max(1, Math.ceil(fromHz / binHz));
+  const end = Math.min(spectrum.length - 1, Math.floor(toHz / binHz));
+  let power = 0;
+  let count = 0;
+  for (let bin = start; bin <= end; bin++) {
+    power += powerFromDb(spectrum[bin]);
+    count += 1;
+  }
+  return count ? power / count : 0;
+}
+
+function strongestSpectralRegion(spectrum, binHz, fromHz, toHz) {
+  const radius = Math.max(2, Math.round(90 / binHz));
+  const start = Math.max(radius, Math.ceil(fromHz / binHz));
+  const end = Math.min(spectrum.length - radius - 1, Math.floor(toHz / binHz));
+  let bestBin = start;
+  let bestScore = -Infinity;
+  for (let bin = start; bin <= end; bin++) {
+    let score = 0;
+    for (let offset = -radius; offset <= radius; offset++) score += spectrum[bin + offset];
+    if (score > bestScore) {
+      bestScore = score;
+      bestBin = bin;
+    }
+  }
+  return Math.round(bestBin * binHz);
+}
+
+function spectralMetrics(spectrum, sampleRate, fftSize) {
+  const binHz = sampleRate / fftSize;
+  const lowPower = bandMeanPower(spectrum, binHz, 120, 1000);
+  const highPower = bandMeanPower(spectrum, binHz, 1000, 4000);
+  const weightBalanceDb = 10 * Math.log10((highPower + 1e-12) / (lowPower + 1e-12));
+
+  const start = Math.ceil(250 / binHz);
+  const end = Math.min(spectrum.length - 1, Math.floor(3500 / binHz));
+  let weightedFrequency = 0;
+  let totalPower = 0;
+  for (let bin = start; bin <= end; bin++) {
+    const power = powerFromDb(spectrum[bin]);
+    weightedFrequency += bin * binHz * power;
+    totalPower += power;
+  }
+  const resonanceCenter = totalPower ? weightedFrequency / totalPower : 0;
+  return {
+    r1: strongestSpectralRegion(spectrum, binHz, 250, 1200),
+    r2: strongestSpectralRegion(spectrum, binHz, 900, 3200),
+    sizeRaw: resonanceCenter,
+    weightRaw: weightBalanceDb,
+    sizePosition: clamp((resonanceCenter - 700) / 1600),
+    weightPosition: clamp((weightBalanceDb + 30) / 24),
+  };
+}
+
+function summarizeMetricFrames(frames) {
+  if (!frames.length) return null;
+  const average = (key) => frames.reduce((sum, frame) => sum + frame[key], 0) / frames.length;
+  return {
+    pitch: Math.round(average("pitch")),
+    r1: Math.round(average("r1")),
+    r2: Math.round(average("r2")),
+    sizeRaw: Math.round(average("sizeRaw")),
+    weightRaw: Number(average("weightRaw").toFixed(2)),
+    sizePosition: Number(average("sizePosition").toFixed(3)),
+    weightPosition: Number(average("weightPosition").toFixed(3)),
+    frames: frames.length,
+  };
+}
+
+function spectrogramColor(db) {
+  const level = clamp((db + 100) / 75);
+  const hue = 275 + level * 55;
+  const lightness = 8 + level * 62;
+  return `hsl(${hue} 85% ${lightness}%)`;
 }
 
 function noteFromHz(hz) {
@@ -283,6 +397,8 @@ class Drill {
     this.overlay = overlay;
     this.step = step;
     this.pitches = new Array(HISTORY).fill(null);
+    this.metricFrames = [];
+    this.latestMetrics = null;
     this.running = false;
     this.closed = false;
     this.discardRecording = false;
@@ -301,9 +417,26 @@ class Drill {
           <span class="badge">${modeLabel(this.step.mode)}</span>
           <span class="badge">${phaseLabel(this.step.phase)}</span>
         </div>
-        <div class="drill-stage">
-          <canvas class="drill-pitch" width="960" height="380" role="img" aria-label="${t("pitchGraph")}"></canvas>
+        <div class="analysis-tabs" role="tablist" aria-label="${t("trainingMode")}">
+          <button class="analysis-tab" role="tab" data-view="pitch">${t("pitchView")}</button>
+          <button class="analysis-tab" role="tab" data-view="spectrum">${t("spectrumView")}</button>
         </div>
+        <div class="analysis-panels">
+          <section class="analysis-panel" role="tabpanel" data-panel="pitch">
+            <canvas class="drill-pitch" width="960" height="380" role="img" aria-label="${t("pitchGraph")}"></canvas>
+          </section>
+          <section class="analysis-panel" role="tabpanel" data-panel="spectrum">
+            <div class="spectrum-wrap">
+              <canvas class="drill-spectrum" width="960" height="380" role="img" aria-label="${t("spectrumGraph")}"></canvas>
+            </div>
+            <div class="spectrum-readouts">
+              <span class="spectrum-metric drill-size">${t("sizeReadout")}: —</span>
+              <span class="spectrum-metric drill-weight">${t("weightReadout")}: —</span>
+              <span class="spectrum-metric drill-resonances">R1 ~ — · R2 ~ —</span>
+            </div>
+          </section>
+        </div>
+        <p class="feedback-hidden-message" hidden>${t("feedbackHidden")}</p>
         <div class="drill-readout">
           <span class="drill-hz">—</span>
           <span class="drill-note">—</span>
@@ -312,6 +445,7 @@ class Drill {
         <div class="drill-controls">
           <button class="drill-go">${t("drillReady")}</button>
           <button class="drill-stop" hidden>${t("stop")}</button>
+          <button class="drill-feedback ghost">${t("hideFeedback")}</button>
           <a class="drill-download" hidden>${t("downloadRecording")}</a>
           <span class="drill-status" role="status" aria-live="polite"></span>
         </div>
@@ -321,19 +455,35 @@ class Drill {
     this.closeBtn = this.overlay.querySelector(".drill-close");
     this.canvas = this.overlay.querySelector(".drill-pitch");
     this.ctx = this.canvas.getContext("2d");
+    this.spectrumCanvas = this.overlay.querySelector(".drill-spectrum");
+    this.spectrumCtx = this.spectrumCanvas.getContext("2d");
+    this.spectrumDataCanvas = document.createElement("canvas");
+    this.spectrumDataCanvas.width = this.spectrumCanvas.width;
+    this.spectrumDataCanvas.height = this.spectrumCanvas.height;
+    this.spectrumDataCtx = this.spectrumDataCanvas.getContext("2d");
+    this.sizeEl = this.overlay.querySelector(".drill-size");
+    this.weightEl = this.overlay.querySelector(".drill-weight");
+    this.resonancesEl = this.overlay.querySelector(".drill-resonances");
     this.hzEl = this.overlay.querySelector(".drill-hz");
     this.noteEl = this.overlay.querySelector(".drill-note");
     this.timerEl = this.overlay.querySelector(".drill-timer");
     this.goBtn = this.overlay.querySelector(".drill-go");
     this.stopBtn = this.overlay.querySelector(".drill-stop");
+    this.feedbackBtn = this.overlay.querySelector(".drill-feedback");
     this.downloadEl = this.overlay.querySelector(".drill-download");
     this.statusEl = this.overlay.querySelector(".drill-status");
 
     this.closeBtn.addEventListener("click", () => this.close());
     this.goBtn.addEventListener("click", () => this.start());
     this.stopBtn.addEventListener("click", () => this.stop());
+    this.feedbackBtn.addEventListener("click", () => this.toggleFeedback());
+    this.overlay.querySelectorAll(".analysis-tab").forEach((button) => {
+      button.addEventListener("click", () => this.setAnalysisView(button.dataset.view));
+    });
 
     this.drawGraph();
+    this.drawSpectrogram();
+    this.setAnalysisView(this.step.mode === "pitch" ? "pitch" : "spectrum");
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", this.handleKeydown);
     this.goBtn.focus();
@@ -389,9 +539,30 @@ class Drill {
     this.audioCtx = new AudioContext();
     const source = this.audioCtx.createMediaStreamSource(this.stream);
     this.analyser = this.audioCtx.createAnalyser();
-    this.analyser.fftSize = 2048;
+    this.analyser.fftSize = 4096;
+    this.analyser.smoothingTimeConstant = 0.65;
     source.connect(this.analyser);
     this.buffer = new Float32Array(this.analyser.fftSize);
+    this.frequencyBuffer = new Float32Array(this.analyser.frequencyBinCount);
+  }
+
+  setAnalysisView(viewName) {
+    this.overlay.querySelectorAll(".analysis-tab").forEach((button) => {
+      const selected = button.dataset.view === viewName;
+      button.setAttribute("aria-selected", String(selected));
+      button.tabIndex = selected ? 0 : -1;
+    });
+    this.overlay.querySelectorAll(".analysis-panel").forEach((panel) => {
+      panel.hidden = panel.dataset.panel !== viewName;
+    });
+  }
+
+  toggleFeedback() {
+    const panels = this.overlay.querySelector(".analysis-panels");
+    const message = this.overlay.querySelector(".feedback-hidden-message");
+    panels.hidden = !panels.hidden;
+    message.hidden = !panels.hidden;
+    this.feedbackBtn.textContent = panels.hidden ? t("showFeedback") : t("hideFeedback");
   }
 
   start() {
@@ -433,6 +604,8 @@ class Drill {
     this.audioCtx.resume();
 
     this.pitches = new Array(HISTORY).fill(null);
+    this.metricFrames = [];
+    this.latestMetrics = null;
     this.lastAnalysisAt = 0;
     this.analyse(performance.now());
 
@@ -458,13 +631,21 @@ class Drill {
     if (timestamp - this.lastAnalysisAt >= PITCH_SAMPLE_INTERVAL_MS) {
       this.lastAnalysisAt = timestamp;
       this.analyser.getFloatTimeDomainData(this.buffer);
+      this.analyser.getFloatFrequencyData(this.frequencyBuffer);
       const hz = autoCorrelate(this.buffer, this.audioCtx.sampleRate);
       this.pitches.push(hz > 0 ? hz : null);
       if (this.pitches.length > HISTORY) this.pitches.shift();
       this.hzEl.textContent = hz > 0 ? `${Math.round(hz)} Hz` : "—";
       const note = noteFromHz(hz);
       this.noteEl.textContent = note ? `${note.en} · ${note.pt}` : "—";
+      if (hz > 0) {
+        const metrics = spectralMetrics(this.frequencyBuffer, this.audioCtx.sampleRate, this.analyser.fftSize);
+        this.latestMetrics = { ...metrics, pitch: hz };
+        this.metricFrames.push(this.latestMetrics);
+        this.updateSpectrumReadouts();
+      }
       this.drawGraph();
+      this.drawSpectrogram(this.frequencyBuffer);
     }
     this.raf = requestAnimationFrame((nextTimestamp) => this.analyse(nextTimestamp));
   }
@@ -508,6 +689,72 @@ class Drill {
     ctx.stroke();
   }
 
+  updateSpectrumReadouts() {
+    const metrics = this.latestMetrics;
+    if (!metrics) {
+      this.sizeEl.textContent = `${t("sizeReadout")}: —`;
+      this.weightEl.textContent = `${t("weightReadout")}: —`;
+      this.resonancesEl.textContent = "R1 ~ — · R2 ~ —";
+      return;
+    }
+    this.sizeEl.textContent = `${t("sizeReadout")}: ${t("larger")} ◀ ${Math.round(metrics.sizePosition * 100)}% ▶ ${t("smaller")}`;
+    this.weightEl.textContent = `${t("weightReadout")}: ${t("lighter")} ◀ ${Math.round(metrics.weightPosition * 100)}% ▶ ${t("heavier")}`;
+    this.resonancesEl.textContent = `R1 ~ ${metrics.r1} Hz · R2 ~ ${metrics.r2} Hz`;
+  }
+
+  drawSpectrogram(spectrum) {
+    const dataCtx = this.spectrumDataCtx;
+    const width = this.spectrumDataCanvas.width;
+    const height = this.spectrumDataCanvas.height;
+    dataCtx.drawImage(this.spectrumDataCanvas, -SPECTRUM_SHIFT_PX, 0);
+    dataCtx.fillStyle = "#100b19";
+    dataCtx.fillRect(width - SPECTRUM_SHIFT_PX, 0, SPECTRUM_SHIFT_PX, height);
+
+    if (spectrum && this.audioCtx) {
+      const binHz = this.audioCtx.sampleRate / this.analyser.fftSize;
+      for (let y = 0; y < height; y += 2) {
+        const ratio = 1 - y / height;
+        const frequency = SPECTRUM_MIN_HZ + ratio * (SPECTRUM_MAX_HZ - SPECTRUM_MIN_HZ);
+        const bin = Math.min(spectrum.length - 1, Math.round(frequency / binHz));
+        dataCtx.fillStyle = spectrogramColor(spectrum[bin]);
+        dataCtx.fillRect(width - SPECTRUM_SHIFT_PX, y, SPECTRUM_SHIFT_PX, 2);
+      }
+    }
+
+    const ctx = this.spectrumCtx;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(this.spectrumDataCanvas, 0, 0);
+    ctx.font = "13px 'Monaspace Radon', monospace";
+    ctx.lineWidth = 1;
+    for (const frequency of [500, 1000, 2000, 3000, 4000]) {
+      const y = height - ((frequency - SPECTRUM_MIN_HZ) / (SPECTRUM_MAX_HZ - SPECTRUM_MIN_HZ)) * height;
+      ctx.strokeStyle = "rgba(236, 230, 247, 0.16)";
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(236, 230, 247, 0.7)";
+      ctx.fillText(`${frequency} Hz`, 5, y - 4);
+    }
+    if (this.latestMetrics) {
+      for (const [label, frequency, color] of [
+        ["R1", this.latestMetrics.r1, "#ff79c6"],
+        ["R2", this.latestMetrics.r2, "#bd93f9"],
+      ]) {
+        const y = height - ((frequency - SPECTRUM_MIN_HZ) / (SPECTRUM_MAX_HZ - SPECTRUM_MIN_HZ)) * height;
+        ctx.strokeStyle = color;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.moveTo(width - 150, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = color;
+        ctx.fillText(`${label} ~`, width - 145, y - 4);
+      }
+    }
+  }
+
   stop() {
     if (!this.running) return;
     this.running = false;
@@ -522,6 +769,7 @@ class Drill {
     if (this.closed || this.discardRecording || !this.chunks.length) return;
     const recordingType = this.recorder.mimeType || "audio/webm";
     const blob = new Blob(this.chunks, { type: recordingType });
+    this.summary = summarizeMetricFrames(this.metricFrames);
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.objectUrl = URL.createObjectURL(blob);
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");

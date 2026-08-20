@@ -101,6 +101,38 @@ test("pitch tracking remains accurate at a throttled sample rate", async ({ page
   expect(calls).toBeLessThanOrEqual(25);
 });
 
+test("size drills open the live spectrum and feedback can be hidden", async ({ page }) => {
+  await page.locator("#btn-create").click();
+  await page.locator(".session-title-input").fill("Tamanho");
+  await page.locator(".step-label-input").fill("Sustente uma vogal.");
+  await page.locator(".step-mode-input").selectOption("size");
+  await page.locator("#start-draft").click();
+
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const sourceContext = new AudioContext();
+      const oscillator = sourceContext.createOscillator();
+      const destination = sourceContext.createMediaStreamDestination();
+      oscillator.frequency.value = 180;
+      oscillator.connect(destination);
+      oscillator.start();
+      window.__spectrumSource = { sourceContext, oscillator };
+      return destination.stream;
+    };
+  });
+
+  await page.locator(".drill-start").click();
+  await waitForMedia(page);
+  await expect(page.locator('[data-panel="spectrum"]')).toBeVisible();
+  await page.locator(".drill-go").click();
+  await expect(page.locator(".drill-size")).not.toContainText("—");
+  await expect(page.locator(".drill-resonances")).toContainText("Hz");
+
+  await page.locator(".drill-feedback").click();
+  await expect(page.locator(".analysis-panels")).toBeHidden();
+  await expect(page.locator(".feedback-hidden-message")).toBeVisible();
+});
+
 test("primary views have accessible semantics and modal focus behavior", async ({ baseURL, context, page }) => {
   await context.grantPermissions(["microphone"], { origin: baseURL });
   await expectNoAxeViolations(page);
@@ -120,9 +152,11 @@ test("primary views have accessible semantics and modal focus behavior", async (
   await expectNoAxeViolations(page);
 
   await page.keyboard.press("Tab");
+  await expect(page.locator(".drill-feedback")).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(page.locator(".drill-close")).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(page.locator(".drill-go")).toBeFocused();
+  await expect(page.locator(".drill-feedback")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("#drill-overlay")).toBeHidden();
   await expect(page.locator(".drill-start")).toBeFocused();
