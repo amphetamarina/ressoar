@@ -63,6 +63,7 @@ to read, edit, and share. A `duration` of `null` means an untimed ("free") step.
 
 ```json
 {
+  "id": "5f84b020-98fe-45d8-832d-c5f725a38b85",
   "title": "My session",
   "createdAt": "2026-05-23",
   "exercises": [
@@ -77,6 +78,11 @@ to read, edit, and share. A `duration` of `null` means an untimed ("free") step.
   ]
 }
 ```
+
+The `id` uniquely identifies the session so two sessions with the same title
+keep separate checklist progress. The editor creates it automatically. Older
+session files without an `id` remain supported; the app derives a stable ID
+from their contents when they are loaded.
 
 The **Create Session** editor produces exactly this format and downloads it as
 `<title>-<dd-mm-yyyy>.ressoar.json`. You can keep personal sessions outside the

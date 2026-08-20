@@ -301,6 +301,11 @@ textarea:focus {
   margin-top: 1.5rem;
 }
 
+.create-error {
+  color: #ff9fbc;
+  margin: 0 0 1rem;
+}
+
 .site-footer {
   max-width: 820px;
   margin: 2rem auto 4rem;

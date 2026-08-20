@@ -47,8 +47,10 @@ const I18N = {
     preparing: "Preparando download…",
     downloaded: "Gravação baixada. Use o botão para baixar de novo.",
     repeat: "Repetir",
-    invalidFormat: "Formato inválido: faltam 'title' ou 'exercises'.",
-    invalidExercise: "Cada exercício precisa de 'title' e 'steps'.",
+    invalidFormat: "Formato inválido: a sessão precisa de título e pelo menos um exercício.",
+    invalidExercise: "Cada exercício precisa de título e pelo menos um passo.",
+    invalidStep: "Cada passo precisa de uma instrução.",
+    invalidDuration: "A duração precisa ser um número inteiro positivo ou null para tempo livre.",
     loadFailed: "Não foi possível carregar a sessão:",
     openSource: "Código Aberto",
     createdBy: "Criado por Marina Rosa —",
@@ -93,8 +95,10 @@ const I18N = {
     preparing: "Preparing download…",
     downloaded: "Recording downloaded. Use the button to download it again.",
     repeat: "Repeat",
-    invalidFormat: "Invalid format: missing 'title' or 'exercises'.",
-    invalidExercise: "Each exercise needs 'title' and 'steps'.",
+    invalidFormat: "Invalid format: the session needs a title and at least one exercise.",
+    invalidExercise: "Each exercise needs a title and at least one step.",
+    invalidStep: "Each step needs an instruction.",
+    invalidDuration: "Duration must be a positive whole number or null for free time.",
     loadFailed: "Could not load the session:",
     openSource: "Open Source",
     createdBy: "Created by Marina Rosa —",
@@ -215,6 +219,24 @@ function el(html) {
   const tpl = document.createElement("template");
   tpl.innerHTML = html.trim();
   return tpl.content.firstElementChild;
+}
+
+function newSessionId() {
+  return globalThis.crypto?.randomUUID?.() ?? `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function sessionFingerprint(data) {
+  const content = JSON.stringify({
+    title: data.title,
+    createdAt: data.createdAt ?? null,
+    exercises: data.exercises,
+  });
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < content.length; index++) {
+    hash ^= BigInt(content.charCodeAt(index));
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return `session-${hash.toString(16).padStart(16, "0")}`;
 }
 
 class Drill {
@@ -509,31 +531,78 @@ let currentSession = null;
 let view = "home";
 
 function validateSession(data) {
-  if (!data || typeof data.title !== "string" || !Array.isArray(data.exercises)) {
+  if (
+    !data ||
+    Array.isArray(data) ||
+    typeof data !== "object" ||
+    typeof data.title !== "string" ||
+    !data.title.trim() ||
+    !Array.isArray(data.exercises) ||
+    !data.exercises.length
+  ) {
+    throw new Error(t("invalidFormat"));
+  }
+  if (data.createdAt !== undefined && typeof data.createdAt !== "string") {
     throw new Error(t("invalidFormat"));
   }
   for (const exercise of data.exercises) {
-    if (typeof exercise.title !== "string" || !Array.isArray(exercise.steps)) {
+    if (
+      !exercise ||
+      Array.isArray(exercise) ||
+      typeof exercise !== "object" ||
+      typeof exercise.title !== "string" ||
+      !exercise.title.trim() ||
+      !Array.isArray(exercise.steps) ||
+      !exercise.steps.length ||
+      (exercise.description !== undefined && typeof exercise.description !== "string")
+    ) {
       throw new Error(t("invalidExercise"));
     }
+    for (const step of exercise.steps) {
+      if (!step || Array.isArray(step) || typeof step !== "object" || typeof step.label !== "string" || !step.label.trim()) {
+        throw new Error(t("invalidStep"));
+      }
+      if (step.duration !== null && (!Number.isInteger(step.duration) || step.duration <= 0)) {
+        throw new Error(t("invalidDuration"));
+      }
+    }
   }
-  return data;
+  const validId = typeof data.id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(data.id);
+  return { ...data, id: validId ? data.id : sessionFingerprint(data) };
 }
 
-function doneKey(title) {
-  return `ressoar:done:${title}`;
+function doneKey(session) {
+  return `ressoar:done:${session.id}`;
 }
 
-function loadDone(title) {
+function validDoneKeys(session) {
+  return new Set(session.exercises.flatMap((exercise, ei) => exercise.steps.map((_, si) => `step:${ei}:${si}`)));
+}
+
+function loadDone(session) {
   try {
-    return new Set(JSON.parse(localStorage.getItem(doneKey(title)) ?? "[]"));
+    const key = doneKey(session);
+    let saved = localStorage.getItem(key);
+    let migrated = false;
+    if (saved === null) {
+      saved = localStorage.getItem(`ressoar:done:${session.title}`);
+      migrated = saved !== null;
+    }
+    const parsed = JSON.parse(saved ?? "[]");
+    const allowed = validDoneKeys(session);
+    const done = new Set(Array.isArray(parsed) ? parsed.filter((item) => allowed.has(item)) : []);
+    if (migrated || (Array.isArray(parsed) && done.size !== parsed.length)) {
+      localStorage.setItem(key, JSON.stringify([...done]));
+      if (migrated) localStorage.removeItem(`ressoar:done:${session.title}`);
+    }
+    return done;
   } catch {
     return new Set();
   }
 }
 
-function saveDone(title, set) {
-  localStorage.setItem(doneKey(title), JSON.stringify([...set]));
+function saveDone(session, set) {
+  localStorage.setItem(doneKey(session), JSON.stringify([...set]));
 }
 
 function renderHome() {
@@ -568,9 +637,9 @@ function openSession(session) {
 function renderSession() {
   view = "session";
   const session = currentSession;
-  const done = loadDone(session.title);
+  const done = loadDone(session);
   const total = session.exercises.reduce((n, exercise) => n + exercise.steps.length, 0);
-  const completed = [...done].filter((key) => key.startsWith("step:")).length;
+  const completed = done.size;
 
   const exercises = session.exercises
     .map((exercise, ei) => {
@@ -615,10 +684,10 @@ function renderSession() {
   app.querySelectorAll(".step input[type=checkbox]").forEach((box) => {
     box.addEventListener("change", (event) => {
       const li = event.target.closest(".step");
-      const set = loadDone(session.title);
+      const set = loadDone(session);
       if (event.target.checked) set.add(li.dataset.key);
       else set.delete(li.dataset.key);
-      saveDone(session.title, set);
+      saveDone(session, set);
       renderSession();
     });
   });
@@ -635,9 +704,9 @@ function renderSession() {
         duration: step.duration ?? null,
         fileBase: `${slug(session.title)}-${ei + 1}.${si + 1}`,
         onDone: () => {
-          const set = loadDone(session.title);
+          const set = loadDone(session);
           set.add(li.dataset.key);
-          saveDone(session.title, set);
+          saveDone(session, set);
         },
       });
     });
@@ -649,7 +718,7 @@ function stepEditor(step) {
     <li class="step-edit">
       <textarea class="step-label-input" rows="2" placeholder="${t("stepLabelPh")}" aria-label="${t("stepLabelPh")}"></textarea>
       <div class="step-edit-meta">
-        <input class="step-duration-input" type="number" min="1" placeholder="${t("secondsPh")}" aria-label="${t("secondsPh")}" />
+        <input class="step-duration-input" type="number" min="1" step="1" placeholder="${t("secondsPh")}" aria-label="${t("secondsPh")}" />
         <label class="free-toggle"><input type="checkbox" class="step-free-input" /> ${t("freeTime")}</label>
         <button class="ghost remove-step">${t("removeStep")}</button>
       </div>
@@ -689,6 +758,7 @@ function exerciseEditor(exercise) {
 }
 
 function collectDraft() {
+  const sessionId = app.querySelector(".create").dataset.sessionId;
   const title = app.querySelector(".session-title-input").value.trim() || t("untitledSession");
   const exercises = [...app.querySelectorAll(".exercise-edit")].map((exNode) => ({
     title: exNode.querySelector(".ex-title-input").value.trim() || t("defaultExercise"),
@@ -702,16 +772,32 @@ function collectDraft() {
       };
     }),
   }));
-  return { title, createdAt: new Date().toISOString().slice(0, 10), exercises };
+  return { id: sessionId, title, createdAt: new Date().toISOString().slice(0, 10), exercises };
+}
+
+function showDraftError(error) {
+  const errorEl = app.querySelector(".create-error");
+  errorEl.textContent = error.message;
+  errorEl.hidden = false;
+  errorEl.focus();
+}
+
+function validateDraft() {
+  const errorEl = app.querySelector(".create-error");
+  errorEl.hidden = true;
+  errorEl.textContent = "";
+  return validateSession(collectDraft());
 }
 
 function renderCreate(draft) {
   view = "create";
+  const sessionId = draft?.id ?? newSessionId();
   app.innerHTML = `
-    <section class="create">
+    <section class="create" data-session-id="${escapeHtml(sessionId)}">
       <button class="back ghost">${t("back")}</button>
       <h2>${t("createTitle")}</h2>
       <input class="session-title-input" placeholder="${t("sessionTitlePh")}" aria-label="${t("sessionTitlePh")}" />
+      <p class="create-error" role="alert" tabindex="-1" hidden></p>
       <div id="exercises-editor"></div>
       <button id="add-exercise" class="ghost">${t("addExercise")}</button>
       <div class="create-actions">
@@ -729,9 +815,21 @@ function renderCreate(draft) {
 
   app.querySelector(".back").addEventListener("click", renderHome);
   document.getElementById("add-exercise").addEventListener("click", () => editor.appendChild(exerciseEditor()));
-  document.getElementById("start-draft").addEventListener("click", () => openSession(validateSession(collectDraft())));
+  document.getElementById("start-draft").addEventListener("click", () => {
+    try {
+      openSession(validateDraft());
+    } catch (error) {
+      showDraftError(error);
+    }
+  });
   document.getElementById("download-draft").addEventListener("click", () => {
-    const session = validateSession(collectDraft());
+    let session;
+    try {
+      session = validateDraft();
+    } catch (error) {
+      showDraftError(error);
+      return;
+    }
     const date = new Date();
     const stamp = `${String(date.getDate()).padStart(2, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
     const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
