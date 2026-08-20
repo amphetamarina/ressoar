@@ -34,6 +34,9 @@ const I18N = {
     freeTime: "Tempo livre",
     untitledSession: "Sessão sem título",
     defaultExercise: "Exercício",
+    close: "Fechar",
+    cameraPreview: "Prévia espelhada da câmera",
+    pitchGraph: "Gráfico de pitch ao vivo de 80 a 400 Hz",
     drillReady: "Pronta? Começar",
     stop: "Parar",
     downloadRecording: "Baixar gravação",
@@ -77,6 +80,9 @@ const I18N = {
     freeTime: "Free time",
     untitledSession: "Untitled session",
     defaultExercise: "Exercise",
+    close: "Close",
+    cameraPreview: "Mirrored camera preview",
+    pitchGraph: "Live pitch graph from 80 to 400 Hz",
     drillReady: "Ready? Start",
     stop: "Stop",
     downloadRecording: "Download recording",
@@ -219,18 +225,20 @@ class Drill {
     this.running = false;
     this.closed = false;
     this.discardRecording = false;
+    this.previousFocus = document.activeElement;
+    this.handleKeydown = (event) => this.onKeydown(event);
     this.render();
   }
 
   render() {
     const durationText = this.step.duration === null ? t("freeTime") : `${this.step.duration}s`;
     this.overlay.innerHTML = `
-      <div class="drill">
-        <button class="drill-close" aria-label="Fechar">×</button>
-        <p class="drill-instruction">${escapeHtml(this.step.label).replace(/\n/g, "<br>")}</p>
+      <div class="drill" role="dialog" aria-modal="true" aria-labelledby="drill-instruction">
+        <button class="drill-close" aria-label="${t("close")}">×</button>
+        <p id="drill-instruction" class="drill-instruction">${escapeHtml(this.step.label).replace(/\n/g, "<br>")}</p>
         <div class="drill-stage">
-          <video class="drill-video" autoplay muted playsinline></video>
-          <canvas class="drill-pitch" width="960" height="380"></canvas>
+          <video class="drill-video" autoplay muted playsinline aria-label="${t("cameraPreview")}"></video>
+          <canvas class="drill-pitch" width="960" height="380" role="img" aria-label="${t("pitchGraph")}"></canvas>
         </div>
         <div class="drill-readout">
           <span class="drill-hz">—</span>
@@ -241,11 +249,12 @@ class Drill {
           <button class="drill-go">${t("drillReady")}</button>
           <button class="drill-stop" hidden>${t("stop")}</button>
           <a class="drill-download" hidden>${t("downloadRecording")}</a>
-          <span class="drill-status"></span>
+          <span class="drill-status" role="status" aria-live="polite"></span>
         </div>
       </div>`;
     this.overlay.hidden = false;
 
+    this.closeBtn = this.overlay.querySelector(".drill-close");
     this.video = this.overlay.querySelector(".drill-video");
     this.canvas = this.overlay.querySelector(".drill-pitch");
     this.ctx = this.canvas.getContext("2d");
@@ -257,23 +266,57 @@ class Drill {
     this.downloadEl = this.overlay.querySelector(".drill-download");
     this.statusEl = this.overlay.querySelector(".drill-status");
 
-    this.overlay.querySelector(".drill-close").addEventListener("click", () => this.close());
+    this.closeBtn.addEventListener("click", () => this.close());
     this.goBtn.addEventListener("click", () => this.start());
     this.stopBtn.addEventListener("click", () => this.stop());
 
     this.drawGraph();
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", this.handleKeydown);
+    this.goBtn.focus();
     this.openMedia();
+  }
+
+  onKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.close();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusable = [...this.overlay.querySelectorAll("button:not([disabled]):not([hidden]), a[href]:not([hidden])")]
+      .filter((node) => node.getClientRects().length > 0);
+    if (!focusable.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && (document.activeElement === first || !this.overlay.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   async openMedia() {
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 },
         audio: true,
       });
+      if (this.closed) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.stream = stream;
     } catch (err) {
       this.statusEl.textContent = `${t("noMedia")} ${err.message}`;
       this.goBtn.disabled = true;
+      this.closeBtn.focus();
       return;
     }
     this.video.srcObject = this.stream;
@@ -291,6 +334,7 @@ class Drill {
     if (!globalThis.MediaRecorder) {
       this.statusEl.textContent = t("noRecorder");
       this.goBtn.disabled = true;
+      this.closeBtn.focus();
       return;
     }
 
@@ -320,6 +364,7 @@ class Drill {
     this.stopBtn.hidden = false;
     this.downloadEl.hidden = true;
     this.statusEl.textContent = t("recording");
+    this.stopBtn.focus();
     this.audioCtx.resume();
 
     this.pitches = new Array(HISTORY).fill(null);
@@ -429,10 +474,12 @@ class Drill {
     this.goBtn.textContent = t("repeat");
     this.goBtn.disabled = false;
     this.stopBtn.disabled = false;
+    this.goBtn.focus();
     if (this.step.onDone) this.step.onDone();
   }
 
   close() {
+    if (this.closed) return;
     this.running = false;
     this.closed = true;
     this.discardRecording = true;
@@ -442,8 +489,11 @@ class Drill {
     if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
     if (this.audioCtx) this.audioCtx.close();
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+    document.removeEventListener("keydown", this.handleKeydown);
+    document.body.classList.remove("modal-open");
     this.overlay.hidden = true;
     this.overlay.innerHTML = "";
+    if (this.previousFocus?.isConnected) this.previousFocus.focus();
   }
 }
 
@@ -597,9 +647,9 @@ function renderSession() {
 function stepEditor(step) {
   const node = el(`
     <li class="step-edit">
-      <textarea class="step-label-input" rows="2" placeholder="${t("stepLabelPh")}"></textarea>
+      <textarea class="step-label-input" rows="2" placeholder="${t("stepLabelPh")}" aria-label="${t("stepLabelPh")}"></textarea>
       <div class="step-edit-meta">
-        <input class="step-duration-input" type="number" min="1" placeholder="${t("secondsPh")}" />
+        <input class="step-duration-input" type="number" min="1" placeholder="${t("secondsPh")}" aria-label="${t("secondsPh")}" />
         <label class="free-toggle"><input type="checkbox" class="step-free-input" /> ${t("freeTime")}</label>
         <button class="ghost remove-step">${t("removeStep")}</button>
       </div>
@@ -615,8 +665,8 @@ function stepEditor(step) {
 function exerciseEditor(exercise) {
   const node = el(`
     <article class="exercise-edit">
-      <input class="ex-title-input" placeholder="${t("exTitlePh")}" />
-      <textarea class="ex-desc-input" rows="2" placeholder="${t("exDescPh")}"></textarea>
+      <input class="ex-title-input" placeholder="${t("exTitlePh")}" aria-label="${t("exTitlePh")}" />
+      <textarea class="ex-desc-input" rows="2" placeholder="${t("exDescPh")}" aria-label="${t("exDescPh")}"></textarea>
       <ul class="steps-edit"></ul>
       <div class="exercise-edit-actions">
         <button class="ghost add-step">${t("addStep")}</button>
@@ -661,7 +711,7 @@ function renderCreate(draft) {
     <section class="create">
       <button class="back ghost">${t("back")}</button>
       <h2>${t("createTitle")}</h2>
-      <input class="session-title-input" placeholder="${t("sessionTitlePh")}" />
+      <input class="session-title-input" placeholder="${t("sessionTitlePh")}" aria-label="${t("sessionTitlePh")}" />
       <div id="exercises-editor"></div>
       <button id="add-exercise" class="ghost">${t("addExercise")}</button>
       <div class="create-actions">
@@ -704,6 +754,7 @@ function applyLang() {
   document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
   langToggle.textContent = I18N[lang].flag;
   langToggle.title = I18N[lang].switchTo;
+  langToggle.setAttribute("aria-label", I18N[lang].switchTo);
   githubText.textContent = t("openSource");
   footerAuthor.innerHTML = `${t("createdBy")} <a href="https://marinarosa.net" target="_blank" rel="noopener noreferrer">marinarosa.net</a>`;
 }
@@ -727,7 +778,10 @@ fileInput.addEventListener("change", async (event) => {
   fileInput.value = "";
 });
 
-document.getElementById("home-link").addEventListener("click", renderHome);
+document.getElementById("home-link").addEventListener("click", (event) => {
+  event.preventDefault();
+  renderHome();
+});
 
 applyLang();
 renderHome();

@@ -35,6 +35,10 @@ body {
   line-height: 1.6;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 header {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--surface-2);
@@ -232,7 +236,7 @@ textarea:focus {
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   background: rgba(189, 147, 249, 0.2);
-  color: var(--accent-2);
+  color: #d8c2ff;
 }
 
 .drill-start {
