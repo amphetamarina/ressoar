@@ -2,14 +2,14 @@
   font-family: "Monaspace Radon";
   src: url("/fonts/radon-regular.woff2") format("woff2");
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
   font-family: "Monaspace Radon";
   src: url("/fonts/radon-bold.woff2") format("woff2");
   font-weight: 700;
-  font-display: swap;
+  font-display: optional;
 }
 
 :root {
@@ -344,6 +344,17 @@ textarea:focus {
 .github-link:hover {
   background: var(--surface-2);
   color: var(--accent);
+}
+
+@media (max-width: 600px) {
+  .site-footer {
+    margin-bottom: 2rem;
+  }
+
+  .github-link {
+    position: static;
+    margin-top: 0.75rem;
+  }
 }
 
 #drill-overlay {
