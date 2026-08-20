@@ -77,6 +77,14 @@ const I18N = {
     spectrumGraph: "Espectrograma ao vivo de 80 a 5000 Hz",
     pitchView: "Pitch",
     spectrumView: "Espectro",
+    fullnessView: "Mapa de plenitude",
+    fullnessMapGraph: "Mapa interativo de tamanho e peso vocal",
+    fullnessMapHelp: "Clique ou toque para posicionar o alvo. No teclado, use as setas.",
+    mapCurrent: "Agora",
+    mapTarget: "Alvo",
+    mapBalanced: "pleno",
+    mapUnderfull: "oco / subpleno",
+    mapOverfull: "estridente / sobrepleno",
     hideFeedback: "Ocultar feedback",
     showFeedback: "Mostrar feedback",
     feedbackHidden: "Feedback oculto — escute e reproduza sem olhar.",
@@ -168,6 +176,14 @@ const I18N = {
     spectrumGraph: "Live spectrogram from 80 to 5000 Hz",
     pitchView: "Pitch",
     spectrumView: "Spectrum",
+    fullnessView: "Fullness map",
+    fullnessMapGraph: "Interactive vocal size and weight map",
+    fullnessMapHelp: "Click or tap to place the target. With a keyboard, use the arrow keys.",
+    mapCurrent: "Current",
+    mapTarget: "Target",
+    mapBalanced: "full",
+    mapUnderfull: "hollow / underfull",
+    mapOverfull: "buzzy / overfull",
     hideFeedback: "Hide feedback",
     showFeedback: "Show feedback",
     feedbackHidden: "Feedback hidden — listen and reproduce without looking.",
@@ -284,6 +300,11 @@ function spectralMetrics(spectrum, sampleRate, fftSize) {
     sizePosition: clamp((resonanceCenter - 700) / 1600),
     weightPosition: clamp((weightBalanceDb + 30) / 24),
   };
+}
+
+function normalizeBetween(value, from, to, fallback) {
+  if (!Number.isFinite(from) || !Number.isFinite(to) || Math.abs(to - from) < 0.01) return fallback;
+  return clamp((value - from) / (to - from));
 }
 
 function summarizeMetricFrames(frames) {
@@ -491,6 +512,7 @@ class Drill {
     this.pitches = new Array(HISTORY).fill(null);
     this.metricFrames = [];
     this.latestMetrics = null;
+    this.fullnessTarget = this.loadFullnessTarget();
     this.running = false;
     this.closed = false;
     this.discardRecording = false;
@@ -512,6 +534,7 @@ class Drill {
         <div class="analysis-tabs" role="tablist" aria-label="${t("trainingMode")}">
           <button class="analysis-tab" role="tab" data-view="pitch">${t("pitchView")}</button>
           <button class="analysis-tab" role="tab" data-view="spectrum">${t("spectrumView")}</button>
+          <button class="analysis-tab" role="tab" data-view="fullness">${t("fullnessView")}</button>
         </div>
         <div class="analysis-panels">
           <section class="analysis-panel" role="tabpanel" data-panel="pitch">
@@ -526,6 +549,11 @@ class Drill {
               <span class="spectrum-metric drill-weight">${t("weightReadout")}: —</span>
               <span class="spectrum-metric drill-resonances">R1 ~ — · R2 ~ —</span>
             </div>
+          </section>
+          <section class="analysis-panel" role="tabpanel" data-panel="fullness">
+            <canvas class="fullness-map" width="760" height="500" tabindex="0" role="img" aria-label="${t("fullnessMapGraph")}"></canvas>
+            <p class="fullness-map-help">${t("fullnessMapHelp")}</p>
+            <p class="fullness-map-status" role="status">${t("waitingForVoice")}</p>
           </section>
         </div>
         <p class="feedback-hidden-message" hidden>${t("feedbackHidden")}</p>
@@ -574,6 +602,9 @@ class Drill {
     this.sizeEl = this.overlay.querySelector(".drill-size");
     this.weightEl = this.overlay.querySelector(".drill-weight");
     this.resonancesEl = this.overlay.querySelector(".drill-resonances");
+    this.fullnessCanvas = this.overlay.querySelector(".fullness-map");
+    this.fullnessCtx = this.fullnessCanvas.getContext("2d");
+    this.fullnessStatus = this.overlay.querySelector(".fullness-map-status");
     this.hzEl = this.overlay.querySelector(".drill-hz");
     this.noteEl = this.overlay.querySelector(".drill-note");
     this.timerEl = this.overlay.querySelector(".drill-timer");
@@ -596,13 +627,16 @@ class Drill {
     this.feedbackBtn.addEventListener("click", () => this.toggleFeedback());
     this.referenceSelect.addEventListener("change", () => this.selectReference(this.referenceSelect.value));
     this.anchorSaveBtn.addEventListener("click", () => this.saveAnchor());
+    this.fullnessCanvas.addEventListener("pointerdown", (event) => this.placeFullnessTarget(event));
+    this.fullnessCanvas.addEventListener("keydown", (event) => this.moveFullnessTarget(event));
     this.overlay.querySelectorAll(".analysis-tab").forEach((button) => {
       button.addEventListener("click", () => this.setAnalysisView(button.dataset.view));
     });
 
     this.drawGraph();
     this.drawSpectrogram();
-    this.setAnalysisView(this.step.mode === "pitch" ? "pitch" : "spectrum");
+    this.drawFullnessMap();
+    this.setAnalysisView(this.step.mode === "pitch" ? "pitch" : this.step.mode === "fullness" ? "fullness" : "spectrum");
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", this.handleKeydown);
     this.closeBtn.focus();
@@ -619,7 +653,7 @@ class Drill {
     if (event.key !== "Tab") return;
 
     const focusable = [...this.overlay.querySelectorAll(
-      "button:not([disabled]):not([hidden]), a[href]:not([hidden]), select:not([disabled]):not([hidden]), audio[controls]:not([hidden])",
+      "button:not([disabled]):not([hidden]), a[href]:not([hidden]), select:not([disabled]):not([hidden]), audio[controls]:not([hidden]), [tabindex]:not([tabindex='-1'])",
     )]
       .filter((node) => node.getClientRects().length > 0);
     if (!focusable.length) {
@@ -673,6 +707,7 @@ class Drill {
   async loadAnchors(selectedId = "") {
     try {
       this.anchors = (await voiceStoreAll("anchors")).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      this.updateCalibration();
       this.referenceSelect.innerHTML = `<option value="">${t("noReference")}</option>${this.anchors
         .map((anchor) => `<option value="${escapeHtml(anchor.id)}">${anchorLabel(anchor.kind)} · ${new Date(anchor.createdAt).toLocaleDateString()}</option>`)
         .join("")}`;
@@ -683,6 +718,85 @@ class Drill {
     } catch (error) {
       this.statusEl.textContent = `${t("anchorSaveFailed")} ${error.message}`;
     }
+  }
+
+  updateCalibration() {
+    const latest = (kind) => this.anchors?.find((anchor) => anchor.kind === kind && anchor.metrics)?.metrics;
+    this.calibration = {
+      larger: latest("larger")?.sizeRaw,
+      smaller: latest("smaller")?.sizeRaw,
+      lighter: latest("lighter")?.weightRaw,
+      heavier: latest("heavier")?.weightRaw,
+    };
+    if (this.latestMetrics) {
+      this.latestMetrics = this.calibrateMetrics(this.latestMetrics);
+      this.drawFullnessMap();
+    }
+  }
+
+  calibrateMetrics(metrics) {
+    const calibration = this.calibration ?? {};
+    return {
+      ...metrics,
+      sizePosition: normalizeBetween(
+        metrics.sizeRaw,
+        calibration.larger,
+        calibration.smaller,
+        metrics.sizePosition,
+      ),
+      weightPosition: normalizeBetween(
+        metrics.weightRaw,
+        calibration.lighter,
+        calibration.heavier,
+        metrics.weightPosition,
+      ),
+    };
+  }
+
+  loadFullnessTarget() {
+    try {
+      const target = JSON.parse(localStorage.getItem("ressoar:fullness-target") ?? "null");
+      if (Number.isFinite(target?.weight) && Number.isFinite(target?.size)) {
+        return { weight: clamp(target.weight), size: clamp(target.size) };
+      }
+    } catch {
+      // Ignore a damaged local target and return the default balanced point.
+    }
+    return { weight: 0.28, size: 0.72 };
+  }
+
+  saveFullnessTarget() {
+    localStorage.setItem("ressoar:fullness-target", JSON.stringify(this.fullnessTarget));
+    this.drawFullnessMap();
+  }
+
+  fullnessBounds() {
+    return { left: 90, top: 55, right: 720, bottom: 430 };
+  }
+
+  placeFullnessTarget(event) {
+    const rect = this.fullnessCanvas.getBoundingClientRect();
+    const scaleX = this.fullnessCanvas.width / rect.width;
+    const scaleY = this.fullnessCanvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+    const bounds = this.fullnessBounds();
+    this.fullnessTarget = {
+      weight: clamp((x - bounds.left) / (bounds.right - bounds.left)),
+      size: 1 - clamp((y - bounds.top) / (bounds.bottom - bounds.top)),
+    };
+    this.saveFullnessTarget();
+  }
+
+  moveFullnessTarget(event) {
+    const amount = event.shiftKey ? 0.1 : 0.025;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "ArrowLeft") this.fullnessTarget.weight = clamp(this.fullnessTarget.weight - amount);
+    if (event.key === "ArrowRight") this.fullnessTarget.weight = clamp(this.fullnessTarget.weight + amount);
+    if (event.key === "ArrowUp") this.fullnessTarget.size = clamp(this.fullnessTarget.size + amount);
+    if (event.key === "ArrowDown") this.fullnessTarget.size = clamp(this.fullnessTarget.size - amount);
+    this.saveFullnessTarget();
   }
 
   selectReference(id) {
@@ -817,10 +931,15 @@ class Drill {
       const note = noteFromHz(hz);
       this.noteEl.textContent = note ? `${note.en} · ${note.pt}` : "—";
       if (hz > 0) {
-        const metrics = spectralMetrics(this.frequencyBuffer, this.audioCtx.sampleRate, this.analyser.fftSize);
+        const metrics = this.calibrateMetrics(spectralMetrics(
+          this.frequencyBuffer,
+          this.audioCtx.sampleRate,
+          this.analyser.fftSize,
+        ));
         this.latestMetrics = { ...metrics, pitch: hz };
         this.metricFrames.push(this.latestMetrics);
         this.updateSpectrumReadouts();
+        this.drawFullnessMap();
       }
       this.drawGraph();
       this.drawSpectrogram(this.frequencyBuffer);
@@ -930,6 +1049,93 @@ class Drill {
         ctx.fillStyle = color;
         ctx.fillText(`${label} ~`, width - 145, y - 4);
       }
+    }
+  }
+
+  drawFullnessMap() {
+    const ctx = this.fullnessCtx;
+    const canvas = this.fullnessCanvas;
+    const { left, top, right, bottom } = this.fullnessBounds();
+    const width = right - left;
+    const height = bottom - top;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#100b19";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const horizontal = ctx.createLinearGradient(left, 0, right, 0);
+    horizontal.addColorStop(0, "rgba(189, 147, 249, 0.12)");
+    horizontal.addColorStop(1, "rgba(255, 121, 198, 0.18)");
+    ctx.fillStyle = horizontal;
+    ctx.fillRect(left, top, width, height);
+
+    ctx.strokeStyle = "rgba(189, 147, 249, 0.34)";
+    ctx.lineWidth = 48;
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(right, bottom);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#5b4777";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(left, top, width, height);
+    ctx.beginPath();
+    ctx.moveTo(left, top + height / 2);
+    ctx.lineTo(right, top + height / 2);
+    ctx.moveTo(left + width / 2, top);
+    ctx.lineTo(left + width / 2, bottom);
+    ctx.stroke();
+
+    ctx.font = "700 16px 'Monaspace Radon', monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ece6f7";
+    ctx.fillText(t("smaller"), left + width / 2, 28);
+    ctx.fillText(t("larger"), left + width / 2, 475);
+    ctx.textAlign = "left";
+    ctx.fillText(t("lighter"), left, 455);
+    ctx.textAlign = "right";
+    ctx.fillText(t("heavier"), right, 455);
+
+    ctx.font = "700 15px 'Monaspace Radon', monospace";
+    ctx.fillStyle = "rgba(255, 159, 188, 0.9)";
+    ctx.textAlign = "right";
+    ctx.fillText(t("mapOverfull"), right - 16, top + 28);
+    ctx.textAlign = "left";
+    ctx.fillText(t("mapUnderfull"), left + 16, bottom - 18);
+    ctx.save();
+    ctx.translate(left + width / 2, top + height / 2);
+    ctx.rotate(Math.atan2(height, width));
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(216, 194, 255, 0.9)";
+    ctx.fillText(t("mapBalanced"), 0, -10);
+    ctx.restore();
+
+    const targetX = left + this.fullnessTarget.weight * width;
+    const targetY = top + (1 - this.fullnessTarget.size) * height;
+    ctx.strokeStyle = "#f8f8f2";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(targetX, targetY, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(targetX - 18, targetY);
+    ctx.lineTo(targetX + 18, targetY);
+    ctx.moveTo(targetX, targetY - 18);
+    ctx.lineTo(targetX, targetY + 18);
+    ctx.stroke();
+
+    if (this.latestMetrics) {
+      const currentX = left + this.latestMetrics.weightPosition * width;
+      const currentY = top + (1 - this.latestMetrics.sizePosition) * height;
+      ctx.shadowColor = "#ff79c6";
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = "#ff79c6";
+      ctx.beginPath();
+      ctx.arc(currentX, currentY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      this.fullnessStatus.textContent = `${t("mapCurrent")}: ${Math.round(this.latestMetrics.sizePosition * 100)}% ${t("smaller")} · ${Math.round(this.latestMetrics.weightPosition * 100)}% ${t("heavier")} | ${t("mapTarget")}: ${Math.round(this.fullnessTarget.size * 100)}% ${t("smaller")} · ${Math.round(this.fullnessTarget.weight * 100)}% ${t("heavier")}`;
+    } else {
+      this.fullnessStatus.textContent = `${t("waitingForVoice")} ${t("mapTarget")}: ${Math.round(this.fullnessTarget.size * 100)}% ${t("smaller")} · ${Math.round(this.fullnessTarget.weight * 100)}% ${t("heavier")}`;
     }
   }
 

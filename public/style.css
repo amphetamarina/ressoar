@@ -452,11 +452,35 @@ select:focus {
 }
 
 .drill-pitch,
-.drill-spectrum {
+.drill-spectrum,
+.fullness-map {
   width: 100%;
   border-radius: 10px;
   background: #000;
   display: block;
+}
+
+.fullness-map {
+  touch-action: none;
+  cursor: crosshair;
+  border: 1px solid var(--surface-2);
+}
+
+.fullness-map:focus {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+.fullness-map-help,
+.fullness-map-status {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.fullness-map-status {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .spectrum-wrap {

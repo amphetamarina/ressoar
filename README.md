@@ -24,6 +24,9 @@ you hear and see both.
   downloaded to your device when you stop. Nothing is uploaded anywhere.
 - **Personal voice anchors.** Save takes locally as baseline, target,
   larger/smaller, or lighter/heavier examples and replay one beside a new take.
+- **Size-weight fullness map.** Fullness drills plot a live point across vocal
+  size and weight, show the balanced small/light to large/heavy diagonal, and
+  let you place a persistent practice target with pointer or keyboard controls.
 - **Checklist progress.** Mark off the steps you have completed. Progress is
   saved in your browser per session.
 - **Your own sessions.** Load a session from a file, or build one in the editor

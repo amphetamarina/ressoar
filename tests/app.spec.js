@@ -169,6 +169,44 @@ test("takes can be saved and replayed as local voice anchors", async ({ page }) 
   await expect(page.locator(".anchor-card audio")).toBeVisible();
 });
 
+test("fullness drills open an interactive persistent size-weight map", async ({ page }) => {
+  await page.locator("#btn-create").click();
+  await page.locator(".session-title-input").fill("Plenitude");
+  await page.locator(".step-label-input").fill("Equilibre tamanho e peso.");
+  await page.locator(".step-mode-input").selectOption("fullness");
+  await page.locator("#start-draft").click();
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const sourceContext = new AudioContext();
+      const oscillator = sourceContext.createOscillator();
+      const destination = sourceContext.createMediaStreamDestination();
+      oscillator.frequency.value = 190;
+      oscillator.connect(destination);
+      oscillator.start();
+      window.__fullnessSource = { sourceContext, oscillator };
+      return destination.stream;
+    };
+  });
+
+  await page.locator(".drill-start").click();
+  await waitForMedia(page);
+  await expect(page.locator('[data-panel="fullness"]')).toBeVisible();
+  const map = page.locator(".fullness-map");
+  const box = await map.boundingBox();
+  await map.click({ position: { x: box.width * 0.72, y: box.height * 0.25 } });
+  const target = await page.evaluate(() => JSON.parse(localStorage.getItem("ressoar:fullness-target")));
+  expect(target.weight).toBeGreaterThan(0.6);
+  expect(target.size).toBeGreaterThan(0.6);
+
+  await map.focus();
+  await page.keyboard.press("ArrowLeft");
+  const movedTarget = await page.evaluate(() => JSON.parse(localStorage.getItem("ressoar:fullness-target")));
+  expect(movedTarget.weight).toBeLessThan(target.weight);
+
+  await page.locator(".drill-go").click();
+  await expect(page.locator(".fullness-map-status")).toContainText("Agora:");
+});
+
 test("primary views have accessible semantics and modal focus behavior", async ({ baseURL, context, page }) => {
   await context.grantPermissions(["microphone"], { origin: baseURL });
   await expectNoAxeViolations(page);
