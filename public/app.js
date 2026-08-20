@@ -37,6 +37,8 @@ const I18N = {
     stop: "Parar",
     downloadRecording: "Baixar gravação",
     noMedia: "Sem acesso à câmera/microfone:",
+    noRecorder: "Este navegador não oferece suporte à gravação de mídia.",
+    recordingFailed: "Não foi possível iniciar a gravação:",
     recording: "Gravando…",
     preparing: "Preparando download…",
     downloaded: "Gravação baixada. Use o botão para baixar de novo.",
@@ -78,6 +80,8 @@ const I18N = {
     stop: "Stop",
     downloadRecording: "Download recording",
     noMedia: "No camera/microphone access:",
+    noRecorder: "This browser does not support media recording.",
+    recordingFailed: "Could not start recording:",
     recording: "Recording…",
     preparing: "Preparing download…",
     downloaded: "Recording downloaded. Use the button to download it again.",
@@ -163,12 +167,23 @@ function autoCorrelate(buf, sampleRate) {
 }
 
 function pickMimeType() {
+  if (!globalThis.MediaRecorder?.isTypeSupported) return "";
   const candidates = [
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
     "video/webm",
+    "video/mp4;codecs=avc1,mp4a.40.2",
+    "video/mp4",
   ];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function extensionFromMimeType(mimeType) {
+  const container = String(mimeType).split(";", 1)[0].toLowerCase();
+  if (container === "video/mp4") return "mp4";
+  if (container === "video/ogg") return "ogv";
+  if (container === "video/webm") return "webm";
+  return "webm";
 }
 
 function escapeHtml(value) {
@@ -200,6 +215,8 @@ class Drill {
     this.step = step;
     this.pitches = new Array(HISTORY).fill(null);
     this.running = false;
+    this.closed = false;
+    this.discardRecording = false;
     this.render();
   }
 
@@ -268,22 +285,40 @@ class Drill {
   }
 
   start() {
-    if (!this.stream) return;
+    if (!this.stream || this.running) return;
+    if (!globalThis.MediaRecorder) {
+      this.statusEl.textContent = t("noRecorder");
+      this.goBtn.disabled = true;
+      return;
+    }
+
+    this.chunks = [];
+    this.discardRecording = false;
+    const mimeType = pickMimeType();
+    try {
+      this.recorder = new MediaRecorder(this.stream, mimeType ? { mimeType } : undefined);
+      this.recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) this.chunks.push(event.data);
+      };
+      this.recorder.onstop = () => {
+        if (this.discardRecording || this.closed) {
+          this.chunks = [];
+          return;
+        }
+        this.finalize();
+      };
+      this.recorder.start();
+    } catch (err) {
+      this.statusEl.textContent = `${t("recordingFailed")} ${err.message}`;
+      return;
+    }
+
     this.running = true;
     this.goBtn.hidden = true;
     this.stopBtn.hidden = false;
     this.downloadEl.hidden = true;
     this.statusEl.textContent = t("recording");
     this.audioCtx.resume();
-
-    this.chunks = [];
-    const mimeType = pickMimeType();
-    this.recorder = new MediaRecorder(this.stream, mimeType ? { mimeType } : undefined);
-    this.recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) this.chunks.push(event.data);
-    };
-    this.recorder.onstop = () => this.finalize();
-    this.recorder.start();
 
     this.pitches = new Array(HISTORY).fill(null);
     this.analyse();
@@ -368,11 +403,14 @@ class Drill {
   }
 
   finalize() {
-    const blob = new Blob(this.chunks, { type: this.recorder.mimeType || "video/webm" });
+    if (this.closed || this.discardRecording || !this.chunks.length) return;
+    const recordingType = this.recorder.mimeType || "video/webm";
+    const blob = new Blob(this.chunks, { type: recordingType });
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.objectUrl = URL.createObjectURL(blob);
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const name = `${this.step.fileBase}-${stamp}.webm`;
+    const extension = extensionFromMimeType(recordingType);
+    const name = `${this.step.fileBase}-${stamp}.${extension}`;
 
     this.downloadEl.href = this.objectUrl;
     this.downloadEl.download = name;
@@ -390,6 +428,8 @@ class Drill {
 
   close() {
     this.running = false;
+    this.closed = true;
+    this.discardRecording = true;
     clearInterval(this.countdown);
     cancelAnimationFrame(this.raf);
     if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop();
