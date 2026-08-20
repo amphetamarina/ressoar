@@ -1,9 +1,8 @@
 # Ressoar
 
 A small, private web app for practicing voice feminization. It guides you
-through drills, runs a live pitch graph while you speak, shows your camera so
-you can watch your mouth and jaw, and lets you keep recordings of your own
-takes. It is built for trans women and anyone working toward a more feminine
+through drills, runs live voice analysis while you speak, and lets you keep
+audio recordings of your own takes. It is built for trans women and anyone working toward a more feminine
 voice, at their own pace, with no account and no data leaving the device.
 
 The name comes from the Portuguese word for "to resonate." Resonance, not just
@@ -18,9 +17,7 @@ you hear and see both.
 - **Live pitch tracking.** While you speak, a graph plots your pitch in real
   time across the 80-400 Hz range, with the current value shown in Hz and as a
   musical note in both English (A3) and Portuguese solfege (Lá3).
-- **Camera feedback.** Your webcam is mirrored next to the graph so you can
-  watch your articulation, smile, and jaw position.
-- **Recordings you control.** Each take is recorded (video and audio) and
+- **Recordings you control.** Each take is recorded as audio and
   downloaded to your device when you stop. Nothing is uploaded anywhere.
 - **Checklist progress.** Mark off the steps you have completed. Progress is
   saved in your browser per session.
@@ -31,8 +28,8 @@ you hear and see both.
 
 ## A note on privacy
 
-Everything runs in your browser. Your camera and microphone are used only to
-draw the live graph and to create recordings that download straight to your
+Everything runs in your browser. Your microphone is used only to
+draw the live analysis and to create recordings that download straight to your
 device. There is no server storing your audio, video, or progress. If you host
 the app yourself, the same is true: the deployed copy serves static files only.
 
@@ -41,7 +38,7 @@ the app yourself, the same is true: the deployed copy serves static files only.
 1. On the home screen, choose **Load Session**, **Create Session**, or open the
    built-in Glissando example.
 2. In a session, each step has a checkbox and a **Start drill** button.
-3. When you open a drill, allow camera and microphone access. Press
+3. When you open a drill, allow microphone access. Press
    **Ready? Start** to begin. The timer runs, the pitch graph draws live, and
    recording begins automatically.
 4. When the timer ends (or you press **Stop**), the recording downloads to your
@@ -52,7 +49,7 @@ the app yourself, the same is true: the deployed copy serves static files only.
 A few practical notes:
 
 - This tool shows **pitch**. Pitch matters, but resonance, intonation, and
-  weight matter at least as much. Use the camera and your own ear alongside the
+  weight matter at least as much. Use your own ear alongside the
   graph, not the number alone.
 - Warm up gently and stop if anything hurts. Strain is never the goal.
 
@@ -99,8 +96,8 @@ mise install        # installs the pinned Bun version
 bun run dev         # starts the server with hot reload
 ```
 
-Then open the printed URL (default http://localhost:3000). The camera and
-microphone work on `localhost` without HTTPS.
+Then open the printed URL (default http://localhost:3000). The microphone works
+on `localhost` without HTTPS.
 
 ## Testing
 
@@ -125,7 +122,7 @@ configuration is included (`vercel.json`); it serves the `public/` directory.
    sets the output directory to `public`.
 3. Deploy.
 
-**Important:** the camera and microphone require a secure context. They work on
+**Important:** the microphone requires a secure context. It works on
 `localhost`, and on any deployed site they require **HTTPS** (Vercel and most
 static hosts provide this automatically). They will not work over plain HTTP.
 

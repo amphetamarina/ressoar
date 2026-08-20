@@ -10,7 +10,7 @@ const I18N = {
   pt: {
     flag: "🇧🇷",
     switchTo: "Switch to English",
-    tagline: "Treinos de feminização vocal com pitch ao vivo, câmera e checklist.",
+    tagline: "Treinos de feminização vocal com áudio, análise ao vivo e checklist.",
     loadSession: "Carregar Sessão",
     createSession: "Criar Sessão",
     noFile: "Sem arquivo? Comece com o exemplo:",
@@ -35,7 +35,6 @@ const I18N = {
     untitledSession: "Sessão sem título",
     defaultExercise: "Exercício",
     close: "Fechar",
-    cameraPreview: "Prévia espelhada da câmera",
     pitchGraph: "Gráfico de pitch ao vivo de 80 a 400 Hz",
     drillReady: "Pronta? Começar",
     stop: "Parar",
@@ -58,7 +57,7 @@ const I18N = {
   en: {
     flag: "🇺🇸",
     switchTo: "Mudar para português",
-    tagline: "Voice feminization practice with live pitch tracking, camera, and a checklist.",
+    tagline: "Voice feminization practice with audio, live analysis, and a checklist.",
     loadSession: "Load Session",
     createSession: "Create Session",
     noFile: "No file? Start with the example:",
@@ -83,12 +82,11 @@ const I18N = {
     untitledSession: "Untitled session",
     defaultExercise: "Exercise",
     close: "Close",
-    cameraPreview: "Mirrored camera preview",
     pitchGraph: "Live pitch graph from 80 to 400 Hz",
     drillReady: "Ready? Start",
     stop: "Stop",
     downloadRecording: "Download recording",
-    noMedia: "No camera/microphone access:",
+    noMedia: "No microphone access:",
     noRecorder: "This browser does not support media recording.",
     recordingFailed: "Could not start recording:",
     recording: "Recording…",
@@ -181,20 +179,21 @@ function autoCorrelate(buf, sampleRate) {
 function pickMimeType() {
   if (!globalThis.MediaRecorder?.isTypeSupported) return "";
   const candidates = [
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp8,opus",
-    "video/webm",
-    "video/mp4;codecs=avc1,mp4a.40.2",
-    "video/mp4",
+    "audio/webm;codecs=opus",
+    "audio/ogg;codecs=opus",
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/webm",
+    "audio/ogg",
+    "audio/mp4",
   ];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
 
 function extensionFromMimeType(mimeType) {
   const container = String(mimeType).split(";", 1)[0].toLowerCase();
-  if (container === "video/mp4") return "mp4";
-  if (container === "video/ogg") return "ogv";
-  if (container === "video/webm") return "webm";
+  if (container === "audio/mp4") return "m4a";
+  if (container === "audio/ogg") return "ogg";
+  if (container === "audio/webm") return "webm";
   return "webm";
 }
 
@@ -259,7 +258,6 @@ class Drill {
         <button class="drill-close" aria-label="${t("close")}">×</button>
         <p id="drill-instruction" class="drill-instruction">${escapeHtml(this.step.label).replace(/\n/g, "<br>")}</p>
         <div class="drill-stage">
-          <video class="drill-video" autoplay muted playsinline aria-label="${t("cameraPreview")}"></video>
           <canvas class="drill-pitch" width="960" height="380" role="img" aria-label="${t("pitchGraph")}"></canvas>
         </div>
         <div class="drill-readout">
@@ -277,7 +275,6 @@ class Drill {
     this.overlay.hidden = false;
 
     this.closeBtn = this.overlay.querySelector(".drill-close");
-    this.video = this.overlay.querySelector(".drill-video");
     this.canvas = this.overlay.querySelector(".drill-pitch");
     this.ctx = this.canvas.getContext("2d");
     this.hzEl = this.overlay.querySelector(".drill-hz");
@@ -327,8 +324,12 @@ class Drill {
   async openMedia() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-        audio: true,
+        video: false,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
       });
       if (this.closed) {
         stream.getTracks().forEach((track) => track.stop());
@@ -341,8 +342,6 @@ class Drill {
       this.closeBtn.focus();
       return;
     }
-    this.video.srcObject = this.stream;
-
     this.audioCtx = new AudioContext();
     const source = this.audioCtx.createMediaStreamSource(this.stream);
     this.analyser = this.audioCtx.createAnalyser();
@@ -477,7 +476,7 @@ class Drill {
 
   finalize() {
     if (this.closed || this.discardRecording || !this.chunks.length) return;
-    const recordingType = this.recorder.mimeType || "video/webm";
+    const recordingType = this.recorder.mimeType || "audio/webm";
     const blob = new Blob(this.chunks, { type: recordingType });
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.objectUrl = URL.createObjectURL(blob);

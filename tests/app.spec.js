@@ -7,7 +7,7 @@ async function openExample(page) {
 }
 
 async function waitForMedia(page) {
-  await page.waitForFunction(() => document.querySelector(".drill-video")?.srcObject?.getTracks().length > 0);
+  await page.waitForFunction(() => document.querySelector(".drill-go")?.disabled === false);
 }
 
 async function expectNoAxeViolations(page) {
@@ -38,7 +38,7 @@ test("home, localization, sample session, and checklist persistence", async ({ p
 });
 
 test("recordings cancel on close and download once on stop", async ({ baseURL, context, page }) => {
-  await context.grantPermissions(["camera", "microphone"], { origin: baseURL });
+  await context.grantPermissions(["microphone"], { origin: baseURL });
   const downloads = [];
   page.on("download", (download) => downloads.push(download.suggestedFilename()));
 
@@ -62,7 +62,7 @@ test("recordings cancel on close and download once on stop", async ({ baseURL, c
   const download = await downloadPromise;
 
   await expect(page.locator(".drill-download")).toBeVisible();
-  expect(download.suggestedFilename()).toMatch(/\.webm$|\.mp4$/);
+  expect(download.suggestedFilename()).toMatch(/\.webm$|\.m4a$|\.ogg$/);
   expect(downloads).toHaveLength(1);
   expect(await page.evaluate(() => localStorage.getItem("ressoar:done:example-glissando"))).toBe('["step:0:0"]');
 });
@@ -102,7 +102,7 @@ test("pitch tracking remains accurate at a throttled sample rate", async ({ page
 });
 
 test("primary views have accessible semantics and modal focus behavior", async ({ baseURL, context, page }) => {
-  await context.grantPermissions(["camera", "microphone"], { origin: baseURL });
+  await context.grantPermissions(["microphone"], { origin: baseURL });
   await expectNoAxeViolations(page);
 
   await page.locator("#btn-create").click();
