@@ -1,6 +1,7 @@
 const MIN_HZ = 80;
 const MAX_HZ = 400;
 const HISTORY = 240;
+const PITCH_SAMPLE_INTERVAL_MS = 50;
 
 const NOTES_EN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const NOTES_PT = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
@@ -134,19 +135,20 @@ function autoCorrelate(buf, sampleRate) {
   const trimmed = buf.slice(start, end);
   size = trimmed.length;
 
-  const correlation = new Array(size).fill(0);
-  for (let lag = 0; lag < size; lag++) {
+  const maxLag = Math.min(size - 2, Math.ceil(sampleRate / MIN_HZ) + 1);
+  const correlation = new Float32Array(maxLag + 1);
+  for (let lag = 0; lag <= maxLag; lag++) {
     for (let i = 0; i < size - lag; i++) {
       correlation[lag] += trimmed[i] * trimmed[i + lag];
     }
   }
 
   let lag = 0;
-  while (lag < size - 1 && correlation[lag] > correlation[lag + 1]) lag++;
+  while (lag < maxLag && correlation[lag] > correlation[lag + 1]) lag++;
 
   let peak = -1;
   let peakLag = -1;
-  for (let i = lag; i < size; i++) {
+  for (let i = lag; i <= maxLag; i++) {
     if (correlation[i] > peak) {
       peak = correlation[i];
       peakLag = i;
@@ -321,7 +323,8 @@ class Drill {
     this.audioCtx.resume();
 
     this.pitches = new Array(HISTORY).fill(null);
-    this.analyse();
+    this.lastAnalysisAt = 0;
+    this.analyse(performance.now());
 
     if (this.step.duration !== null) {
       this.remaining = this.step.duration;
@@ -340,17 +343,20 @@ class Drill {
     }
   }
 
-  analyse() {
+  analyse(timestamp) {
     if (!this.running) return;
-    this.analyser.getFloatTimeDomainData(this.buffer);
-    const hz = autoCorrelate(this.buffer, this.audioCtx.sampleRate);
-    this.pitches.push(hz > 0 ? hz : null);
-    if (this.pitches.length > HISTORY) this.pitches.shift();
-    this.hzEl.textContent = hz > 0 ? `${Math.round(hz)} Hz` : "—";
-    const note = noteFromHz(hz);
-    this.noteEl.textContent = note ? `${note.en} · ${note.pt}` : "—";
-    this.drawGraph();
-    this.raf = requestAnimationFrame(() => this.analyse());
+    if (timestamp - this.lastAnalysisAt >= PITCH_SAMPLE_INTERVAL_MS) {
+      this.lastAnalysisAt = timestamp;
+      this.analyser.getFloatTimeDomainData(this.buffer);
+      const hz = autoCorrelate(this.buffer, this.audioCtx.sampleRate);
+      this.pitches.push(hz > 0 ? hz : null);
+      if (this.pitches.length > HISTORY) this.pitches.shift();
+      this.hzEl.textContent = hz > 0 ? `${Math.round(hz)} Hz` : "—";
+      const note = noteFromHz(hz);
+      this.noteEl.textContent = note ? `${note.en} · ${note.pt}` : "—";
+      this.drawGraph();
+    }
+    this.raf = requestAnimationFrame((nextTimestamp) => this.analyse(nextTimestamp));
   }
 
   drawGraph() {
