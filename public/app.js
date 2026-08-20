@@ -2,6 +2,8 @@ const MIN_HZ = 80;
 const MAX_HZ = 400;
 const HISTORY = 240;
 const PITCH_SAMPLE_INTERVAL_MS = 50;
+const STEP_MODES = ["pitch", "weight", "size", "fullness", "integration"];
+const STEP_PHASES = ["practice", "cold", "working", "recall"];
 
 const NOTES_EN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const NOTES_PT = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
@@ -30,6 +32,17 @@ const I18N = {
     removeExercise: "Remover exercício",
     removeStep: "Remover passo",
     stepLabelPh: "Instrução do exercício",
+    trainingMode: "Foco do exercício",
+    checkpoint: "Momento do treino",
+    modePitch: "Pitch",
+    modeWeight: "Peso",
+    modeSize: "Tamanho / ressonância",
+    modeFullness: "Plenitude",
+    modeIntegration: "Integração",
+    phasePractice: "Prática",
+    phaseCold: "Início sem aquecimento",
+    phaseWorking: "Voz de trabalho",
+    phaseRecall: "Retomada",
     secondsPh: "segundos",
     freeTime: "Tempo livre",
     untitledSession: "Sessão sem título",
@@ -39,7 +52,7 @@ const I18N = {
     drillReady: "Pronta? Começar",
     stop: "Parar",
     downloadRecording: "Baixar gravação",
-    noMedia: "Sem acesso à câmera/microfone:",
+    noMedia: "Sem acesso ao microfone:",
     noRecorder: "Este navegador não oferece suporte à gravação de mídia.",
     recordingFailed: "Não foi possível iniciar a gravação:",
     recording: "Gravando…",
@@ -50,6 +63,7 @@ const I18N = {
     invalidExercise: "Cada exercício precisa de título e pelo menos um passo.",
     invalidStep: "Cada passo precisa de uma instrução.",
     invalidDuration: "A duração precisa ser um número inteiro positivo ou null para tempo livre.",
+    invalidMode: "O foco ou o momento do exercício é inválido.",
     loadFailed: "Não foi possível carregar a sessão:",
     openSource: "Código Aberto",
     createdBy: "Criado por Marina Rosa —",
@@ -77,6 +91,17 @@ const I18N = {
     removeExercise: "Remove exercise",
     removeStep: "Remove step",
     stepLabelPh: "Exercise instruction",
+    trainingMode: "Exercise focus",
+    checkpoint: "Practice checkpoint",
+    modePitch: "Pitch",
+    modeWeight: "Weight",
+    modeSize: "Size / resonance",
+    modeFullness: "Fullness",
+    modeIntegration: "Integration",
+    phasePractice: "Practice",
+    phaseCold: "Cold start",
+    phaseWorking: "Working voice",
+    phaseRecall: "Recall",
     secondsPh: "seconds",
     freeTime: "Free time",
     untitledSession: "Untitled session",
@@ -97,6 +122,7 @@ const I18N = {
     invalidExercise: "Each exercise needs a title and at least one step.",
     invalidStep: "Each step needs an instruction.",
     invalidDuration: "Duration must be a positive whole number or null for free time.",
+    invalidMode: "The exercise focus or checkpoint is invalid.",
     loadFailed: "Could not load the session:",
     openSource: "Open Source",
     createdBy: "Created by Marina Rosa —",
@@ -107,6 +133,20 @@ let lang = localStorage.getItem("ressoar:lang") === "en" ? "en" : "pt";
 
 function t(key) {
   return I18N[lang][key] ?? I18N.pt[key] ?? key;
+}
+
+function modeLabel(mode) {
+  return t(`mode${mode[0].toUpperCase()}${mode.slice(1)}`);
+}
+
+function phaseLabel(phase) {
+  return t(`phase${phase[0].toUpperCase()}${phase.slice(1)}`);
+}
+
+function selectOptions(values, labeler, selected) {
+  return values
+    .map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${labeler(value)}</option>`)
+    .join("");
 }
 
 function noteFromHz(hz) {
@@ -257,6 +297,10 @@ class Drill {
       <div class="drill" role="dialog" aria-modal="true" aria-labelledby="drill-instruction">
         <button class="drill-close" aria-label="${t("close")}">×</button>
         <p id="drill-instruction" class="drill-instruction">${escapeHtml(this.step.label).replace(/\n/g, "<br>")}</p>
+        <div class="drill-context">
+          <span class="badge">${modeLabel(this.step.mode)}</span>
+          <span class="badge">${phaseLabel(this.step.phase)}</span>
+        </div>
         <div class="drill-stage">
           <canvas class="drill-pitch" width="960" height="380" role="img" aria-label="${t("pitchGraph")}"></canvas>
         </div>
@@ -564,10 +608,22 @@ function validateSession(data) {
       if (step.duration !== null && (!Number.isInteger(step.duration) || step.duration <= 0)) {
         throw new Error(t("invalidDuration"));
       }
+      if ((step.mode !== undefined && !STEP_MODES.includes(step.mode)) ||
+          (step.phase !== undefined && !STEP_PHASES.includes(step.phase))) {
+        throw new Error(t("invalidMode"));
+      }
     }
   }
   const validId = typeof data.id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(data.id);
-  return { ...data, id: validId ? data.id : sessionFingerprint(data) };
+  const exercises = data.exercises.map((exercise) => ({
+    ...exercise,
+    steps: exercise.steps.map((step) => ({
+      ...step,
+      mode: step.mode ?? "pitch",
+      phase: step.phase ?? "practice",
+    })),
+  }));
+  return { ...data, exercises, id: validId ? data.id : sessionFingerprint(data) };
 }
 
 function doneKey(session) {
@@ -655,6 +711,8 @@ function renderSession() {
             <div class="step-meta">
               <span class="badge">${ei + 1}.${si + 1}</span>
               <span class="badge">${duration}</span>
+              <span class="badge badge-mode">${modeLabel(step.mode)}</span>
+              ${step.phase !== "practice" ? `<span class="badge badge-phase">${phaseLabel(step.phase)}</span>` : ""}
               <button class="drill-start">${t("startDrill")}</button>
             </div>
           </li>`;
@@ -701,6 +759,8 @@ function renderSession() {
       activeDrill = new Drill(overlay, {
         label: step.label,
         duration: step.duration ?? null,
+        mode: step.mode,
+        phase: step.phase,
         fileBase: `${slug(session.title)}-${ei + 1}.${si + 1}`,
         onDone: () => {
           const set = loadDone(session);
@@ -713,10 +773,18 @@ function renderSession() {
 }
 
 function stepEditor(step) {
+  const mode = step?.mode ?? "pitch";
+  const phase = step?.phase ?? "practice";
   const node = el(`
     <li class="step-edit">
       <textarea class="step-label-input" rows="2" placeholder="${t("stepLabelPh")}" aria-label="${t("stepLabelPh")}"></textarea>
       <div class="step-edit-meta">
+        <label class="step-select-label">${t("trainingMode")}
+          <select class="step-mode-input">${selectOptions(STEP_MODES, modeLabel, mode)}</select>
+        </label>
+        <label class="step-select-label">${t("checkpoint")}
+          <select class="step-phase-input">${selectOptions(STEP_PHASES, phaseLabel, phase)}</select>
+        </label>
         <input class="step-duration-input" type="number" min="1" step="1" placeholder="${t("secondsPh")}" aria-label="${t("secondsPh")}" />
         <label class="free-toggle"><input type="checkbox" class="step-free-input" /> ${t("freeTime")}</label>
         <button class="ghost remove-step">${t("removeStep")}</button>
@@ -768,6 +836,8 @@ function collectDraft() {
       return {
         label: stepNode.querySelector(".step-label-input").value.trim(),
         duration: free || !durationValue ? null : durationValue,
+        mode: stepNode.querySelector(".step-mode-input").value,
+        phase: stepNode.querySelector(".step-phase-input").value,
       };
     }),
   }));

@@ -114,7 +114,8 @@ button:disabled {
 }
 
 input,
-textarea {
+textarea,
+select {
   font: inherit;
   width: 100%;
   background: var(--surface-2);
@@ -125,7 +126,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   outline: none;
   border-color: var(--accent-2);
 }
@@ -277,6 +279,18 @@ textarea:focus {
   width: 8rem;
 }
 
+.step-select-label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  flex: 1 1 12rem;
+}
+
+.step-select-label select {
+  min-width: 0;
+}
+
 .free-toggle {
   display: flex;
   align-items: center;
@@ -395,6 +409,13 @@ textarea:focus {
 .drill-instruction {
   font-size: 1.05rem;
   margin-top: 0.5rem;
+}
+
+.drill-context {
+  display: flex;
+  gap: 0.5rem;
+  margin: -0.25rem 0 0.75rem;
+  flex-wrap: wrap;
 }
 
 .drill-stage {

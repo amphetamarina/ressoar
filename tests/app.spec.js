@@ -176,7 +176,12 @@ test("downloaded sessions include an ID and invalid imports are rejected", async
   for await (const chunk of stream) chunks.push(chunk);
   const session = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   expect(session.id).toMatch(/^[a-zA-Z0-9][a-zA-Z0-9._:-]+$/);
-  expect(session.exercises[0].steps[0]).toEqual({ label: "Som leve", duration: 10 });
+  expect(session.exercises[0].steps[0]).toEqual({
+    label: "Som leve",
+    duration: 10,
+    mode: "pitch",
+    phase: "practice",
+  });
 
   await page.locator("#home-link").click();
   const dialogPromise = page.waitForEvent("dialog");

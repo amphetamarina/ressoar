@@ -68,8 +68,8 @@ to read, edit, and share. A `duration` of `null` means an untimed ("free") step.
       "title": "Sustained vowel",
       "description": "Optional notes shown above the steps.",
       "steps": [
-        { "label": "Hold an /i/ at a comfortable high pitch.", "duration": 90 },
-        { "label": "Read a paragraph aloud, twice.", "duration": null }
+        { "label": "Hold an /i/ at a comfortable high pitch.", "duration": 90, "mode": "size", "phase": "practice" },
+        { "label": "Read a paragraph aloud, twice.", "duration": null, "mode": "integration", "phase": "recall" }
       ]
     }
   ]
@@ -80,6 +80,10 @@ The `id` uniquely identifies the session so two sessions with the same title
 keep separate checklist progress. The editor creates it automatically. Older
 session files without an `id` remain supported; the app derives a stable ID
 from their contents when they are loaded.
+
+The optional `mode` field selects `pitch`, `weight`, `size`, `fullness`, or
+`integration`. The optional `phase` field selects `practice`, `cold`, `working`,
+or `recall`. Older steps without these fields open as pitch practice.
 
 The **Create Session** editor produces exactly this format and downloads it as
 `<title>-<dd-mm-yyyy>.ressoar.json`. You can keep personal sessions outside the

@@ -9,7 +9,9 @@
       "steps": [
         {
           "label": "Glissando: do grave para o agudo em escalas e descer em escalas para o grave.",
-          "duration": 90
+          "duration": 90,
+          "mode": "pitch",
+          "phase": "practice"
         }
       ]
     }
