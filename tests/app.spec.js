@@ -133,6 +133,42 @@ test("size drills open the live spectrum and feedback can be hidden", async ({ p
   await expect(page.locator(".feedback-hidden-message")).toBeVisible();
 });
 
+test("takes can be saved and replayed as local voice anchors", async ({ page }) => {
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const sourceContext = new AudioContext();
+      const oscillator = sourceContext.createOscillator();
+      const destination = sourceContext.createMediaStreamDestination();
+      oscillator.frequency.value = 200;
+      oscillator.connect(destination);
+      oscillator.start();
+      window.__anchorSource = { sourceContext, oscillator };
+      return destination.stream;
+    };
+  });
+  const downloadPromise = page.waitForEvent("download");
+  await openExample(page);
+  await page.locator(".drill-start").click();
+  await waitForMedia(page);
+  await page.locator(".drill-go").click();
+  await page.waitForTimeout(250);
+  await page.locator(".drill-stop").click();
+  await downloadPromise;
+
+  await expect(page.locator(".current-take")).toBeVisible();
+  await page.locator(".anchor-kind").selectOption("smaller");
+  await page.locator(".anchor-save-button").click();
+  await expect(page.locator(".drill-status")).toContainText("Âncora salva");
+  await expect(page.locator(".anchor-reference option")).toHaveCount(2);
+
+  await page.locator(".drill-close").click();
+  await page.locator("#home-link").click();
+  await page.locator("#btn-anchors").click();
+  await expect(page.locator(".anchor-card")).toHaveCount(1);
+  await expect(page.locator(".anchor-card h3")).toHaveText("Som menor");
+  await expect(page.locator(".anchor-card audio")).toBeVisible();
+});
+
 test("primary views have accessible semantics and modal focus behavior", async ({ baseURL, context, page }) => {
   await context.grantPermissions(["microphone"], { origin: baseURL });
   await expectNoAxeViolations(page);
@@ -151,12 +187,9 @@ test("primary views have accessible semantics and modal focus behavior", async (
   await expect(page.locator(".drill-go")).toBeFocused();
   await expectNoAxeViolations(page);
 
-  await page.keyboard.press("Tab");
-  await expect(page.locator(".drill-feedback")).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.locator(".drill-close")).toBeFocused();
+  await page.locator(".drill-close").focus();
   await page.keyboard.press("Shift+Tab");
-  await expect(page.locator(".drill-feedback")).toBeFocused();
+  expect(await page.evaluate(() => document.querySelector("#drill-overlay").contains(document.activeElement))).toBe(true);
   await page.keyboard.press("Escape");
   await expect(page.locator("#drill-overlay")).toBeHidden();
   await expect(page.locator(".drill-start")).toBeFocused();

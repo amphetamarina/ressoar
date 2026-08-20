@@ -22,6 +22,8 @@ you hear and see both.
   be hidden for ear-only practice.
 - **Recordings you control.** Each take is recorded as audio and
   downloaded to your device when you stop. Nothing is uploaded anywhere.
+- **Personal voice anchors.** Save takes locally as baseline, target,
+  larger/smaller, or lighter/heavier examples and replay one beside a new take.
 - **Checklist progress.** Mark off the steps you have completed. Progress is
   saved in your browser per session.
 - **Your own sessions.** Load a session from a file, or build one in the editor

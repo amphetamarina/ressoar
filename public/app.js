@@ -5,6 +5,9 @@ const PITCH_SAMPLE_INTERVAL_MS = 50;
 const SPECTRUM_MIN_HZ = 80;
 const SPECTRUM_MAX_HZ = 5000;
 const SPECTRUM_SHIFT_PX = 4;
+const VOICE_DB_NAME = "ressoar-voice";
+const VOICE_DB_VERSION = 1;
+const ANCHOR_KINDS = ["baseline", "target", "larger", "smaller", "lighter", "heavier"];
 const STEP_MODES = ["pitch", "weight", "size", "fullness", "integration"];
 const STEP_PHASES = ["practice", "cold", "working", "recall"];
 
@@ -18,6 +21,25 @@ const I18N = {
     tagline: "Treinos de feminização vocal com áudio, análise ao vivo e checklist.",
     loadSession: "Carregar Sessão",
     createSession: "Criar Sessão",
+    voiceAnchors: "Âncoras de voz",
+    anchorsTitle: "Âncoras de voz",
+    anchorsIntro: "Exemplos pessoais salvos apenas neste navegador para comparação e imitação.",
+    noAnchors: "Nenhuma âncora salva ainda. Grave um drill e salve a tomada como referência.",
+    referenceTake: "Referência",
+    noReference: "Sem referência",
+    currentTake: "Tomada atual",
+    saveTakeAs: "Salvar tomada como",
+    saveAnchor: "Salvar âncora",
+    anchorSaved: "Âncora salva neste navegador.",
+    anchorSaveFailed: "Não foi possível salvar a âncora:",
+    deleteAnchor: "Excluir âncora",
+    deleteAnchorConfirm: "Excluir esta âncora de voz deste navegador?",
+    anchorBaseline: "Voz de base",
+    anchorTarget: "Voz alvo",
+    anchorLarger: "Som maior",
+    anchorSmaller: "Som menor",
+    anchorLighter: "Som mais leve",
+    anchorHeavier: "Som mais pesado",
     noFile: "Sem arquivo? Comece com o exemplo:",
     openExample: "Abrir exemplo (Glissando)",
     back: "← Início",
@@ -90,6 +112,25 @@ const I18N = {
     tagline: "Voice feminization practice with audio, live analysis, and a checklist.",
     loadSession: "Load Session",
     createSession: "Create Session",
+    voiceAnchors: "Voice anchors",
+    anchorsTitle: "Voice anchors",
+    anchorsIntro: "Personal examples saved only in this browser for comparison and imitation.",
+    noAnchors: "No anchors saved yet. Record a drill and save the take as a reference.",
+    referenceTake: "Reference",
+    noReference: "No reference",
+    currentTake: "Current take",
+    saveTakeAs: "Save take as",
+    saveAnchor: "Save anchor",
+    anchorSaved: "Anchor saved in this browser.",
+    anchorSaveFailed: "Could not save the anchor:",
+    deleteAnchor: "Delete anchor",
+    deleteAnchorConfirm: "Delete this voice anchor from this browser?",
+    anchorBaseline: "Baseline voice",
+    anchorTarget: "Target voice",
+    anchorLarger: "Larger sound",
+    anchorSmaller: "Smaller sound",
+    anchorLighter: "Lighter sound",
+    anchorHeavier: "Heavier sound",
     noFile: "No file? Start with the example:",
     openExample: "Open example (Glissando)",
     back: "← Home",
@@ -170,6 +211,10 @@ function modeLabel(mode) {
 
 function phaseLabel(phase) {
   return t(`phase${phase[0].toUpperCase()}${phase.slice(1)}`);
+}
+
+function anchorLabel(kind) {
+  return t(`anchor${kind[0].toUpperCase()}${kind.slice(1)}`);
 }
 
 function selectOptions(values, labeler, selected) {
@@ -261,6 +306,53 @@ function spectrogramColor(db) {
   const hue = 275 + level * 55;
   const lightness = 8 + level * 62;
   return `hsl(${hue} 85% ${lightness}%)`;
+}
+
+function openVoiceDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(VOICE_DB_NAME, VOICE_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains("anchors")) {
+        const anchors = database.createObjectStore("anchors", { keyPath: "id" });
+        anchors.createIndex("createdAt", "createdAt");
+      }
+      if (!database.objectStoreNames.contains("takes")) {
+        const takes = database.createObjectStore("takes", { keyPath: "id" });
+        takes.createIndex("createdAt", "createdAt");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function voiceStoreRequest(storeName, mode, operation) {
+  const database = await openVoiceDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(storeName, mode);
+    const store = transaction.objectStore(storeName);
+    const request = operation(store);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+function voiceStoreAll(storeName) {
+  return voiceStoreRequest(storeName, "readonly", (store) => store.getAll());
+}
+
+function voiceStorePut(storeName, value) {
+  return voiceStoreRequest(storeName, "readwrite", (store) => store.put(value));
+}
+
+function voiceStoreDelete(storeName, id) {
+  return voiceStoreRequest(storeName, "readwrite", (store) => store.delete(id));
 }
 
 function noteFromHz(hz) {
@@ -443,12 +535,30 @@ class Drill {
           <span class="drill-timer">${durationText}</span>
         </div>
         <div class="drill-controls">
-          <button class="drill-go">${t("drillReady")}</button>
+          <button class="drill-go" disabled>${t("drillReady")}</button>
           <button class="drill-stop" hidden>${t("stop")}</button>
           <button class="drill-feedback ghost">${t("hideFeedback")}</button>
           <a class="drill-download" hidden>${t("downloadRecording")}</a>
           <span class="drill-status" role="status" aria-live="polite"></span>
         </div>
+        <section class="take-comparison" aria-label="${t("voiceAnchors")}">
+          <div class="reference-take">
+            <label>${t("referenceTake")}
+              <select class="anchor-reference"><option value="">${t("noReference")}</option></select>
+            </label>
+            <audio class="anchor-reference-audio" controls hidden></audio>
+          </div>
+          <div class="current-take" hidden>
+            <span>${t("currentTake")}</span>
+            <audio class="current-take-audio" controls></audio>
+          </div>
+          <div class="anchor-save" hidden>
+            <label>${t("saveTakeAs")}
+              <select class="anchor-kind">${selectOptions(ANCHOR_KINDS, anchorLabel, "target")}</select>
+            </label>
+            <button class="anchor-save-button ghost">${t("saveAnchor")}</button>
+          </div>
+        </section>
       </div>`;
     this.overlay.hidden = false;
 
@@ -472,11 +582,20 @@ class Drill {
     this.feedbackBtn = this.overlay.querySelector(".drill-feedback");
     this.downloadEl = this.overlay.querySelector(".drill-download");
     this.statusEl = this.overlay.querySelector(".drill-status");
+    this.referenceSelect = this.overlay.querySelector(".anchor-reference");
+    this.referenceAudio = this.overlay.querySelector(".anchor-reference-audio");
+    this.currentTake = this.overlay.querySelector(".current-take");
+    this.currentAudio = this.overlay.querySelector(".current-take-audio");
+    this.anchorSave = this.overlay.querySelector(".anchor-save");
+    this.anchorKind = this.overlay.querySelector(".anchor-kind");
+    this.anchorSaveBtn = this.overlay.querySelector(".anchor-save-button");
 
     this.closeBtn.addEventListener("click", () => this.close());
     this.goBtn.addEventListener("click", () => this.start());
     this.stopBtn.addEventListener("click", () => this.stop());
     this.feedbackBtn.addEventListener("click", () => this.toggleFeedback());
+    this.referenceSelect.addEventListener("change", () => this.selectReference(this.referenceSelect.value));
+    this.anchorSaveBtn.addEventListener("click", () => this.saveAnchor());
     this.overlay.querySelectorAll(".analysis-tab").forEach((button) => {
       button.addEventListener("click", () => this.setAnalysisView(button.dataset.view));
     });
@@ -486,7 +605,8 @@ class Drill {
     this.setAnalysisView(this.step.mode === "pitch" ? "pitch" : "spectrum");
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", this.handleKeydown);
-    this.goBtn.focus();
+    this.closeBtn.focus();
+    this.loadAnchors();
     this.openMedia();
   }
 
@@ -498,7 +618,9 @@ class Drill {
     }
     if (event.key !== "Tab") return;
 
-    const focusable = [...this.overlay.querySelectorAll("button:not([disabled]):not([hidden]), a[href]:not([hidden])")]
+    const focusable = [...this.overlay.querySelectorAll(
+      "button:not([disabled]):not([hidden]), a[href]:not([hidden]), select:not([disabled]):not([hidden]), audio[controls]:not([hidden])",
+    )]
       .filter((node) => node.getClientRects().length > 0);
     if (!focusable.length) {
       event.preventDefault();
@@ -544,6 +666,62 @@ class Drill {
     source.connect(this.analyser);
     this.buffer = new Float32Array(this.analyser.fftSize);
     this.frequencyBuffer = new Float32Array(this.analyser.frequencyBinCount);
+    this.goBtn.disabled = false;
+    this.goBtn.focus();
+  }
+
+  async loadAnchors(selectedId = "") {
+    try {
+      this.anchors = (await voiceStoreAll("anchors")).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      this.referenceSelect.innerHTML = `<option value="">${t("noReference")}</option>${this.anchors
+        .map((anchor) => `<option value="${escapeHtml(anchor.id)}">${anchorLabel(anchor.kind)} · ${new Date(anchor.createdAt).toLocaleDateString()}</option>`)
+        .join("")}`;
+      if (selectedId) {
+        this.referenceSelect.value = selectedId;
+        this.selectReference(selectedId);
+      }
+    } catch (error) {
+      this.statusEl.textContent = `${t("anchorSaveFailed")} ${error.message}`;
+    }
+  }
+
+  selectReference(id) {
+    if (this.referenceObjectUrl) URL.revokeObjectURL(this.referenceObjectUrl);
+    this.referenceObjectUrl = null;
+    const anchor = this.anchors?.find((item) => item.id === id);
+    if (!anchor) {
+      this.referenceAudio.pause();
+      this.referenceAudio.removeAttribute("src");
+      this.referenceAudio.hidden = true;
+      return;
+    }
+    this.referenceObjectUrl = URL.createObjectURL(anchor.blob);
+    this.referenceAudio.src = this.referenceObjectUrl;
+    this.referenceAudio.hidden = false;
+  }
+
+  async saveAnchor() {
+    if (!this.recordingBlob) return;
+    this.anchorSaveBtn.disabled = true;
+    try {
+      const anchor = {
+        id: newSessionId(),
+        kind: this.anchorKind.value,
+        createdAt: new Date().toISOString(),
+        label: this.step.label,
+        mode: this.step.mode,
+        metrics: this.summary,
+        mimeType: this.recordingBlob.type,
+        blob: this.recordingBlob,
+      };
+      await voiceStorePut("anchors", anchor);
+      this.statusEl.textContent = t("anchorSaved");
+      await this.loadAnchors(anchor.id);
+    } catch (error) {
+      this.statusEl.textContent = `${t("anchorSaveFailed")} ${error.message}`;
+    } finally {
+      this.anchorSaveBtn.disabled = false;
+    }
   }
 
   setAnalysisView(viewName) {
@@ -769,6 +947,7 @@ class Drill {
     if (this.closed || this.discardRecording || !this.chunks.length) return;
     const recordingType = this.recorder.mimeType || "audio/webm";
     const blob = new Blob(this.chunks, { type: recordingType });
+    this.recordingBlob = blob;
     this.summary = summarizeMetricFrames(this.metricFrames);
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.objectUrl = URL.createObjectURL(blob);
@@ -780,6 +959,10 @@ class Drill {
     this.downloadEl.download = name;
     this.downloadEl.hidden = false;
     this.downloadEl.click();
+
+    this.currentAudio.src = this.objectUrl;
+    this.currentTake.hidden = false;
+    this.anchorSave.hidden = false;
 
     this.statusEl.textContent = t("downloaded");
     this.stopBtn.hidden = true;
@@ -802,6 +985,7 @@ class Drill {
     if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
     if (this.audioCtx) this.audioCtx.close();
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+    if (this.referenceObjectUrl) URL.revokeObjectURL(this.referenceObjectUrl);
     document.removeEventListener("keydown", this.handleKeydown);
     document.body.classList.remove("modal-open");
     this.overlay.hidden = true;
@@ -820,6 +1004,12 @@ const footerAuthor = document.getElementById("footer-author");
 let activeDrill = null;
 let currentSession = null;
 let view = "home";
+let viewObjectUrls = [];
+
+function clearViewObjectUrls() {
+  viewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  viewObjectUrls = [];
+}
 
 function validateSession(data) {
   if (
@@ -909,6 +1099,7 @@ function saveDone(session, set) {
 }
 
 function renderHome() {
+  clearViewObjectUrls();
   view = "home";
   currentSession = null;
   app.innerHTML = `
@@ -922,13 +1113,68 @@ function renderHome() {
         <span>${t("noFile")}</span>
         <button id="btn-example" class="ghost">${t("openExample")}</button>
       </div>
+      <div class="home-tools">
+        <button id="btn-anchors" class="ghost">${t("voiceAnchors")}</button>
+      </div>
     </section>`;
 
   document.getElementById("btn-load").addEventListener("click", () => fileInput.click());
   document.getElementById("btn-create").addEventListener("click", () => renderCreate());
+  document.getElementById("btn-anchors").addEventListener("click", () => renderAnchors());
   document.getElementById("btn-example").addEventListener("click", async () => {
     const res = await fetch("/sessions/exemplo-glissando.ressoar.json");
     openSession(validateSession(await res.json()));
+  });
+}
+
+async function renderAnchors() {
+  clearViewObjectUrls();
+  view = "anchors";
+  currentSession = null;
+  app.innerHTML = `
+    <section class="anchors-view">
+      <button class="back ghost">${t("back")}</button>
+      <h2>${t("anchorsTitle")}</h2>
+      <p class="description">${t("anchorsIntro")}</p>
+      <div class="anchors-list"><p class="description">${t("waitingForVoice")}</p></div>
+    </section>`;
+  app.querySelector(".back").addEventListener("click", renderHome);
+
+  let anchors;
+  try {
+    anchors = (await voiceStoreAll("anchors")).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch (error) {
+    app.querySelector(".anchors-list").innerHTML = `<p class="create-error">${escapeHtml(error.message)}</p>`;
+    return;
+  }
+  if (view !== "anchors") return;
+  if (!anchors.length) {
+    app.querySelector(".anchors-list").innerHTML = `<p class="description">${t("noAnchors")}</p>`;
+    return;
+  }
+  app.querySelector(".anchors-list").innerHTML = anchors.map((anchor) => {
+    const url = URL.createObjectURL(anchor.blob);
+    viewObjectUrls.push(url);
+    const metrics = anchor.metrics;
+    return `<article class="anchor-card" data-id="${escapeHtml(anchor.id)}">
+      <div>
+        <h3>${anchorLabel(anchor.kind)}</h3>
+        <p>${escapeHtml(anchor.label)}</p>
+        <div class="anchor-badges">
+          <span class="badge">${modeLabel(anchor.mode ?? "integration")}</span>
+          ${metrics ? `<span class="badge">${metrics.pitch} Hz</span><span class="badge">R1 ~ ${metrics.r1} · R2 ~ ${metrics.r2}</span>` : ""}
+        </div>
+      </div>
+      <audio controls src="${url}"></audio>
+      <button class="delete-anchor ghost">${t("deleteAnchor")}</button>
+    </article>`;
+  }).join("");
+  app.querySelectorAll(".delete-anchor").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm(t("deleteAnchorConfirm"))) return;
+      await voiceStoreDelete("anchors", button.closest(".anchor-card").dataset.id);
+      renderAnchors();
+    });
   });
 }
 
@@ -1162,6 +1408,7 @@ function renderCreate(draft) {
 function rerender() {
   if (view === "session" && currentSession) renderSession();
   else if (view === "create") renderCreate(collectDraft());
+  else if (view === "anchors") renderAnchors();
   else renderHome();
 }
 
