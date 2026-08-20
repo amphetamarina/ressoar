@@ -102,6 +102,19 @@ bun run dev         # starts the server with hot reload
 Then open the printed URL (default http://localhost:3000). The camera and
 microphone work on `localhost` without HTTPS.
 
+## Testing
+
+The Playwright suite starts the local server and covers the main session,
+recording, pitch, accessibility, validation, download, and mobile-layout flows.
+It uses an installed system Chromium when available; otherwise install the
+Playwright browser once.
+
+```sh
+bun install
+bunx playwright install chromium # only needed when Chromium is not installed
+bun run test
+```
+
 ## Deploying
 
 The app is fully static, so any static host works. A [Vercel](https://vercel.com)

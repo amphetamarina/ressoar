@@ -2,3 +2,5 @@ node_modules/
 saved-sessions/
 *.log
 .DS_Store
+playwright-report/
+test-results/
