@@ -1,6 +1,5 @@
 node_modules/
-saved-sessions/
-*.log
-.DS_Store
+dist/
 playwright-report/
 test-results/
+saved-sessions/

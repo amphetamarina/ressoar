@@ -8,6 +8,7 @@ const browserPath =
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: /.*\.spec\.ts/,
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
@@ -17,14 +18,14 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: `http://localhost:${port}`,
-    acceptDownloads: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: `PORT=${port} bun run start`,
+    command: `bun run build && bun run preview -- --port ${port}`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
   },
   projects: [
     {
@@ -33,7 +34,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         launchOptions: {
           ...(browserPath ? { executablePath: browserPath } : {}),
-          args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+          args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
         },
       },
     },

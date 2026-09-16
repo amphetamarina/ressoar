@@ -1,164 +1,78 @@
 # Ressoar
 
-A small, private web app for practicing voice feminization. It guides you
-through drills, runs live voice analysis while you speak, and lets you keep
-audio recordings of your own takes. It is built for trans women and anyone working toward a more feminine
-voice, at their own pace, with no account and no data leaving the device.
+A small, private web app for voice training, built for trans women and anyone
+working on their voice. It shows your pitch in real time, lets you hear what you
+just said, and gives you sentences and reference tones to practice with. No
+account, no uploads: nothing leaves your device.
 
-The name comes from the Portuguese word for "to resonate." The app treats
-pitch, vocal size, vocal weight, and fullness as related but independently
-trainable parts of a voice, with your own ear as the final reference.
+The name comes from the Portuguese verb "to resonate". The feature set is
+inspired by the Voice Tools app.
 
 ## What it does
 
-- **Guided drills.** A session is a list of exercises, each broken into timed
-  steps (for example, a 90-second glissando). Start a step when you are ready
-  and a timer counts down.
-- **Live pitch tracking.** While you speak, a graph plots your pitch in real
-  time across the 80-400 Hz range, with the current value shown in Hz and as a
-  musical note in both English (A3) and Portuguese solfege (Lá3).
-- **Live spectrum.** A scrolling spectrogram makes harmonic and resonance
-  changes visible, with approximate R1/R2, size, and weight readouts that can
-  be hidden for ear-only practice.
-- **Recordings you control.** Each take is recorded as audio and
-  downloaded to your device when you stop. Nothing is uploaded anywhere.
-- **Personal voice anchors.** Save takes locally as baseline, target,
-  larger/smaller, or lighter/heavier examples and replay one beside a new take.
-- **Size-weight fullness map.** Fullness drills plot a live point across vocal
-  size and weight, show the balanced small/light to large/heavy diagonal, and
-  let you place a persistent practice target with pointer or keyboard controls.
-- **Checklist progress.** Mark off the steps you have completed. Progress is
-  saved in your browser per session.
-- **Built-in foundations.** A complete routine moves from a cold-start sample
-  through weight, size, fullness, integration, and delayed recall.
-- **Retention history.** Takes, acoustic summaries, and optional ease,
-  stability, and satisfaction ratings stay local for cold/working/recall
-  comparison.
-- **Your own sessions.** Load a session from a file, or build one in the editor
-  and download it to reuse and share.
-- **Portuguese and English.** The interface defaults to Portuguese; use the
-  flag in the top-right corner to switch to English.
+- **Pitch.** A live graph of your pitch over the last 12 seconds with three
+  colored ranges (masculine, androgynous, feminine), a large Hz readout, the
+  nearest note (in English and Portuguese solfège), and a volume meter.
+- **Replay.** Hear the last 10, 20 or 30 seconds of your voice. The audio only
+  ever lives in memory and is gone as soon as it scrolls out of the buffer.
+- **Spectrum.** A scrolling spectrogram with a simple "dark to bright"
+  resonance hint.
+- **Sentences.** About a hundred short sentences per language, grouped by
+  sound (vowels, nasals, fricatives, plosives, liquids, questions, longer
+  mixed sentences), to read aloud while you watch your pitch.
+- **Tones.** A reference tone you can match by ear: pick a note or an exact
+  frequency, choose a soft or bright timbre, and set the volume.
+- **Settings.** Language (Portuguese default, English), light or dark theme,
+  microphone, graph range, replay length, tone defaults.
 
-## A note on privacy
+The pitch ranges are rough perceptual guides, not classifications. Voices of
+any gender can sit in any range, and resonance, intonation and weight matter at
+least as much as pitch. The thresholds live in `src/lib/audio/constants.ts`.
 
-Everything runs in your browser. Your microphone is used only to
-draw the live analysis and to create recordings that download straight to your
-device. Saved anchors, practice-history audio, ratings, and checklist progress
-stay in that browser's local storage. Nothing is uploaded to a server. Clearing
-site data removes those local records; downloaded recordings remain on your
-device. If you host the app yourself, the deployed copy still serves static
-files only.
+## Privacy
 
-## Using the app
-
-1. On the home screen, open the built-in foundations, choose **Load Session**
-   or **Create Session**, or try the Glissando example.
-2. In a session, each step has a checkbox and a **Start drill** button.
-3. When you open a drill, allow microphone access. Press
-   **Ready? Start** to begin. The timer runs, the pitch graph draws live, and
-   recording begins automatically.
-4. When the timer ends (or you press **Stop**), the recording downloads to your
-   device and appears in local practice history. Optionally rate its ease,
-   stability, and satisfaction or save it as a voice anchor.
-5. Check off steps as you finish them. Your progress is remembered the next time
-   you open the same session in the same browser.
-
-A few practical notes:
-
-- This tool shows **pitch**. Pitch matters, but resonance, intonation, and
-  weight matter at least as much. Use your own ear alongside the
-  graph, not the number alone.
-- Warm up gently and stop if anything hurts. Strain is never the goal.
-
-## Session file format
-
-Sessions are plain JSON files with a `.ressoar.json` extension, so they are easy
-to read, edit, and share. A `duration` of `null` means an untimed ("free") step.
-
-```json
-{
-  "id": "5f84b020-98fe-45d8-832d-c5f725a38b85",
-  "title": "My session",
-  "createdAt": "2026-05-23",
-  "exercises": [
-    {
-      "title": "Sustained vowel",
-      "description": "Optional notes shown above the steps.",
-      "steps": [
-        { "label": "Hold an /i/ at a comfortable high pitch.", "duration": 90, "mode": "size", "phase": "practice" },
-        { "label": "Read a paragraph aloud, twice.", "duration": null, "mode": "integration", "phase": "recall" }
-      ]
-    }
-  ]
-}
-```
-
-The `id` uniquely identifies the session so two sessions with the same title
-keep separate checklist progress. The editor creates it automatically. Older
-session files without an `id` remain supported; the app derives a stable ID
-from their contents when they are loaded.
-
-The optional `mode` field selects `pitch`, `weight`, `size`, `fullness`, or
-`integration`. The optional `phase` field selects `practice`, `cold`, `working`,
-or `recall`. Older steps without these fields open as pitch practice.
-
-The **Create Session** editor produces exactly this format and downloads it as
-`<title>-<dd-mm-yyyy>.ressoar.json`. You can keep personal sessions outside the
-project (this repo ignores a `saved-sessions/` folder for that purpose) and load
-them with **Load Session**.
+Everything runs in your browser. The microphone feeds a live analysis and a
+short in-memory buffer for replay. No audio is written to disk or sent
+anywhere. Settings are stored in your browser's local storage.
 
 ## Running locally
 
-This project uses [mise](https://mise.jdx.dev/) to pin the toolchain (Bun) and
-serves the `public/` folder as a static site.
+The project uses [mise](https://mise.jdx.dev/) to pin Bun.
 
 ```sh
-mise install        # installs the pinned Bun version
-bun run dev         # starts the server with hot reload
+mise install
+bun install
+bun run dev
 ```
 
-Then open the printed URL (default http://localhost:3000). The microphone works
-on `localhost` without HTTPS.
+Open the printed URL. The microphone works on `localhost` without HTTPS; on a
+deployed site it requires HTTPS.
 
-If **Ready? Start** remains disabled, check the message at the top of the drill.
-When microphone access was previously blocked, allow it in the browser's site
-permissions for the exact localhost port, then use **Try microphone again**.
-
-## Testing
-
-The Playwright suite starts the local server and covers the main session,
-recording, pitch, accessibility, validation, download, and mobile-layout flows.
-It uses an installed system Chromium when available; otherwise install the
-Playwright browser once.
+## Checks and tests
 
 ```sh
-bun install
-bunx playwright install chromium # only needed when Chromium is not installed
-bun run test
+bun run check       # svelte-check (TypeScript + Svelte)
+bun run test:unit   # Vitest: pitch detection, note names, ring buffer
+bun run test        # Playwright end-to-end (builds and previews the app)
+```
+
+The Playwright suite uses a system Chromium if one is installed at a standard
+path; otherwise run `bunx playwright install chromium` once.
+
+On NixOS the downloaded browser cannot start. Point the suite at a
+Nix-provided Chromium instead:
+
+```sh
+PLAYWRIGHT_CHROMIUM_PATH="$(nix-shell -p chromium --run 'readlink -f "$(which chromium)"')" bun run test
 ```
 
 ## Deploying
 
-The app is fully static, so any static host works. A [Vercel](https://vercel.com)
-configuration is included (`vercel.json`); it serves the `public/` directory.
+`bun run build` produces a static site in `dist/`. A Vercel configuration is
+included; import the repository and deploy. Any static host with HTTPS works.
 
-1. Push the repository to a Git provider Vercel can read.
-2. Import the project in Vercel. No build command is needed; the included config
-   sets the output directory to `public`.
-3. Deploy.
+## Credits and disclaimer
 
-**Important:** the microphone requires a secure context. It works on
-`localhost`, and on any deployed site they require **HTTPS** (Vercel and most
-static hosts provide this automatically). They will not work over plain HTTP.
-
-## Credits
-
-Typeface: [Monaspace Radon](https://github.com/githubnext/monaspace) by GitHub
-Next, used under the SIL Open Font License.
-
-## Disclaimer
-
-Ressoar is a practice aid, not medical advice. Voice training carries some risk
-of strain if done aggressively. If you can, work with a speech-language
-pathologist or a qualified gender-affirming voice trainer, especially when
-starting out. Be patient and kind to yourself; voice change takes time.
+Created by Marina Rosa. Ressoar is a practice aid, not medical advice. Warm up
+gently and stop if anything hurts. If you can, work with a speech-language
+pathologist or a gender-affirming voice trainer.
